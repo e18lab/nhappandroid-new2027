@@ -1,24 +1,27 @@
 /**
- * Иконки: старое приложение использует Feather (`@expo/vector-icons`), новое — lucide (наследник Feather).
- * `name` — имя Feather как в старом коде, чтобы переносить разметку без перевода имён.
- * Список — все иконки, которые встречаются в старом приложении.
+ * Иконки: набор Iconoir (https://iconoir.com), обводка 2 (пожирнее стандартной 1.5).
+ * `name` — имя Feather из старого приложения (`@expo/vector-icons`), чтобы переносить разметку без перевода имён;
+ * значение — ближайшая по смыслу иконка Iconoir. `solid` — заливка (есть только у части иконок, см. SOLID).
  */
+import type { ComponentType, SVGProps } from "react";
 import {
-  AlertCircle, AlertTriangle, AlignJustify, AlignLeft, ArrowDown, ArrowDownCircle, ArrowLeft, ArrowUp, ArrowUpCircle,
-  AtSign, CheckCircle, Clipboard, Copy, Save, Film, Key, Mail, Send, MinusCircle, PenTool, PlusCircle, ArrowRight, CornerUpLeft, Maximize, Minimize,
-  ArrowUpRight, Book, BookOpen, Bookmark, Calendar, Camera, Check, CheckSquare, ChevronDown,
-  ChevronLeft, ChevronRight, ChevronUp, Clock, Cloud, Cpu, Database, Download, Edit2, Edit3, EyeOff,
-  FileText, Filter, Folder, Globe, Grid, Hash, Heart, Home, Image, Info, Layout, List, Loader, Lock,
-  LogIn, LogOut, Menu, MessageCircle, MessageSquare, Minus, Package, Pause, Plus, RefreshCcw,
-  RefreshCw, Repeat, RotateCcw, Search, Settings, Shield, Shuffle, Sliders, Smartphone, Square,
-  Star, Sun, Tag, Trash2, TrendingUp, Type, Upload, User, Users, X, XCircle,
-  type LucideIcon,
-} from "lucide-react";
+  WarningCircle, WarningTriangle, Menu, AlignLeft, ArrowDown, ArrowDownCircle, ArrowLeft, ArrowRight, ArrowUp, ArrowUpCircle,
+  ArrowUpRight, AtSign, Book, OpenBook, Bookmark, Calendar, Camera, Check, CheckCircle, CheckSquare, UndoAction,
+  NavArrowDown, NavArrowLeft, NavArrowRight, NavArrowUp, ClipboardCheck, Clock, Cloud, Copy, Cpu, Database, Download,
+  EditPencil, Edit, EyeClosed, Page, Filter, MediaVideo, Folder, Globe, ViewGrid, Hashtag, Heart, HomeSimpleDoor,
+  MediaImage, InfoCircle, Key, ViewColumns3, List, Refresh, Lock, Mail, LogIn, LogOut, Maximize, Reduce, ChatBubble,
+  ChatLines, MoreVert, Minus, MinusCircle, Box, Pause, DesignNib, Plus, PlusCircle, RefreshCircle, Repeat, Undo,
+  FloppyDisk, Search, Send, Settings, Shield, Shuffle, FilterList, SmartphoneDevice, Square, Star, SunLight, Label,
+  Trash, GraphUp, Text, Upload, User, Group, Xmark, XmarkCircle,
+} from "iconoir-react";
+import { Heart as HeartSolid, Star as StarSolid, Bookmark as BookmarkSolid, Book as BookSolid } from "iconoir-react/solid";
+
+type IconCmp = ComponentType<SVGProps<SVGSVGElement> & { width?: number | string; height?: number | string }>;
 
 const ICONS = {
-  "alert-circle": AlertCircle,
-  "alert-triangle": AlertTriangle,
-  "align-justify": AlignJustify,
+  "alert-circle": WarningCircle,
+  "alert-triangle": WarningTriangle,
+  "align-justify": Menu,
   "align-left": AlignLeft,
   "arrow-down": ArrowDown,
   "arrow-down-circle": ArrowDownCircle,
@@ -29,100 +32,120 @@ const ICONS = {
   "arrow-up-right": ArrowUpRight,
   "at-sign": AtSign,
   book: Book,
-  "book-open": BookOpen,
+  "book-open": OpenBook,
   bookmark: Bookmark,
   calendar: Calendar,
   camera: Camera,
   check: Check,
   "check-circle": CheckCircle,
   "check-square": CheckSquare,
-  "corner-up-left": CornerUpLeft,
-  "chevron-down": ChevronDown,
-  "chevron-left": ChevronLeft,
-  "chevron-right": ChevronRight,
-  "chevron-up": ChevronUp,
-  clipboard: Clipboard,
+  "corner-up-left": UndoAction,
+  "chevron-down": NavArrowDown,
+  "chevron-left": NavArrowLeft,
+  "chevron-right": NavArrowRight,
+  "chevron-up": NavArrowUp,
+  clipboard: ClipboardCheck,
   clock: Clock,
   cloud: Cloud,
   copy: Copy,
   cpu: Cpu,
   database: Database,
   download: Download,
-  "edit-2": Edit2,
-  "edit-3": Edit3,
-  "eye-off": EyeOff,
-  "file-text": FileText,
+  "edit-2": EditPencil,
+  "edit-3": Edit,
+  "eye-off": EyeClosed,
+  "file-text": Page,
   filter: Filter,
-  film: Film,
+  film: MediaVideo,
   folder: Folder,
   globe: Globe,
-  grid: Grid,
-  hash: Hash,
+  grid: ViewGrid,
+  hash: Hashtag,
   heart: Heart,
-  home: Home,
-  image: Image,
-  info: Info,
+  home: HomeSimpleDoor,
+  image: MediaImage,
+  info: InfoCircle,
   key: Key,
-  layout: Layout,
+  layout: ViewColumns3,
   list: List,
-  loader: Loader,
+  loader: Refresh,
   lock: Lock,
   mail: Mail,
   "log-in": LogIn,
   "log-out": LogOut,
   maximize: Maximize,
   menu: Menu,
-  "message-circle": MessageCircle,
-  "message-square": MessageSquare,
-  minimize: Minimize,
+  "message-circle": ChatBubble,
+  "message-square": ChatLines,
+  "more-vertical": MoreVert,
+  minimize: Reduce,
   minus: Minus,
   "minus-circle": MinusCircle,
-  package: Package,
+  package: Box,
   pause: Pause,
-  "pen-tool": PenTool,
+  "pen-tool": DesignNib,
   plus: Plus,
   "plus-circle": PlusCircle,
-  "refresh-ccw": RefreshCcw,
-  "refresh-cw": RefreshCw,
+  "refresh-ccw": RefreshCircle,
+  "refresh-cw": Refresh,
   repeat: Repeat,
-  "rotate-ccw": RotateCcw,
-  save: Save,
+  "rotate-ccw": Undo,
+  save: FloppyDisk,
   search: Search,
   send: Send,
   settings: Settings,
   shield: Shield,
   shuffle: Shuffle,
-  sliders: Sliders,
-  smartphone: Smartphone,
+  sliders: FilterList,
+  smartphone: SmartphoneDevice,
   square: Square,
   star: Star,
-  sun: Sun,
-  tag: Tag,
-  "trash-2": Trash2,
-  "trending-up": TrendingUp,
-  type: Type,
+  sun: SunLight,
+  tag: Label,
+  "trash-2": Trash,
+  "trending-up": GraphUp,
+  type: Text,
   upload: Upload,
   user: User,
-  users: Users,
-  x: X,
-  "x-circle": XCircle,
-} satisfies Record<string, LucideIcon>;
+  users: Group,
+  x: Xmark,
+  "x-circle": XmarkCircle,
+} satisfies Record<string, IconCmp>;
 
 export type IconName = keyof typeof ICONS;
+
+const SOLID: Partial<Record<IconName, IconCmp>> = {
+  heart: HeartSolid,
+  star: StarSolid,
+  bookmark: BookmarkSolid,
+  book: BookSolid,
+};
 
 export function Icon({
   name,
   size = 20,
   color = "currentColor",
   strokeWidth = 2,
+  solid = false,
   className,
 }: {
   name: IconName;
   size?: number;
   color?: string;
   strokeWidth?: number;
+  solid?: boolean;
   className?: string;
 }) {
-  const Cmp = ICONS[name];
-  return <Cmp size={size} color={color} strokeWidth={strokeWidth} className={className} aria-hidden="true" />;
+  const Cmp: IconCmp = (solid && SOLID[name]) || ICONS[name];
+  return (
+    <Cmp
+      width={size}
+      height={size}
+      color={color}
+      strokeWidth={strokeWidth}
+      className={className}
+      aria-hidden="true"
+      style={{ flexShrink: 0 }}
+    />
+  );
 }

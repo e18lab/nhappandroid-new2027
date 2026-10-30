@@ -7,6 +7,8 @@ type Tree = { [key: string]: string | Tree };
 
 export const additions: Record<"ru" | "en" | "ja" | "zh", Tree> = {
   ru: {
+    nav: { home: "Главная", characters: "Персонажи", profile: "Профиль", search: "Поиск", library: "Библиотека", account: "Аккаунт", openProfile: "Открыть профиль", guest: "Гость", guestHint: "Войдите, чтобы синхронизировать закладки и оставлять комментарии" },
+    home: { tabs: { my: "Моя", latest: "Новое", today: "Сегодня", week: "Неделя", month: "Месяц", all: "Всё время" } },
     downloads: { saved: "Сохранено", deleted: "Удалено", canceled: "Загрузка отменена", failed: "Не удалось скачать", busy: "Уже скачивается другая книга", downloading: "Загрузка", choose: "Выбрать папку", reset: "По умолчанию", notFound: "Книга не найдена на устройстве" },
     login: { form: { captchaStart: "Пройти проверку", captchaDone: "Проверка пройдена", captchaAndroidOnly: "Проверка доступна только в приложении (Android или ПК), не в браузере.", captchaFailed: "Проверка не прошла. Попробуйте ещё раз." } },
     tags: { kind: { tags: "тег", artists: "художник", characters: "персонаж", parodies: "пародия", groups: "группа" } },
@@ -35,6 +37,8 @@ export const additions: Record<"ru" | "en" | "ja" | "zh", Tree> = {
     about: { title: "Приложение", text: "NHApp на Tauri 2. Каталог читается с API v2 nhentai.", version: "Версия {version}" },
   },
   en: {
+    nav: { home: "Home", characters: "Characters", profile: "Profile", search: "Search", library: "Library", account: "Account", openProfile: "Open profile", guest: "Guest", guestHint: "Sign in to sync bookmarks and post comments" },
+    home: { tabs: { my: "Mine", latest: "Latest", today: "Today", week: "Week", month: "Month", all: "All time" } },
     downloads: { saved: "Saved", deleted: "Deleted", canceled: "Download canceled", failed: "Download failed", busy: "Another book is already downloading", downloading: "Downloading", choose: "Choose folder", reset: "Default", notFound: "Book not found on this device" },
     login: { form: { captchaStart: "Complete the check", captchaDone: "Check passed", captchaAndroidOnly: "The check is only available in the app (Android or PC), not in a browser.", captchaFailed: "The check failed. Please try again." } },
     tags: { kind: { tags: "tag", artists: "artist", characters: "character", parodies: "parody", groups: "group" } },
@@ -63,6 +67,8 @@ export const additions: Record<"ru" | "en" | "ja" | "zh", Tree> = {
     about: { title: "App", text: "NHApp on Tauri 2. The catalog is loaded from the nhentai API v2.", version: "Version {version}" },
   },
   ja: {
+    nav: { home: "ホーム", characters: "キャラクター", profile: "プロフィール", search: "検索", library: "ライブラリ", account: "アカウント", openProfile: "プロフィールを開く", guest: "ゲスト", guestHint: "ログインするとブックマークの同期やコメントができます" },
+    home: { tabs: { my: "マイ", latest: "新着", today: "今日", week: "週間", month: "月間", all: "全期間" } },
     downloads: { saved: "保存しました", deleted: "削除しました", canceled: "ダウンロードを中止しました", failed: "ダウンロードに失敗しました", busy: "別の本をダウンロード中です", downloading: "ダウンロード中", choose: "フォルダを選択", reset: "デフォルト", notFound: "端末に本が見つかりません" },
     login: { form: { captchaStart: "確認を行う", captchaDone: "確認済み", captchaAndroidOnly: "確認はアプリ(Android または PC)でのみ利用できます。ブラウザでは利用できません。", captchaFailed: "確認に失敗しました。もう一度お試しください。" } },
     tags: { kind: { tags: "タグ", artists: "作者", characters: "キャラクター", parodies: "パロディ", groups: "グループ" } },
@@ -91,6 +97,8 @@ export const additions: Record<"ru" | "en" | "ja" | "zh", Tree> = {
     about: { title: "アプリ", text: "Tauri 2 版 NHApp。カタログは nhentai API v2 から読み込みます。", version: "バージョン {version}" },
   },
   zh: {
+    nav: { home: "首页", characters: "角色", profile: "我的", search: "搜索", library: "书库", account: "账户", openProfile: "打开个人资料", guest: "访客", guestHint: "登录后可同步书签并发表评论" },
+    home: { tabs: { my: "我的", latest: "最新", today: "今日", week: "本周", month: "本月", all: "全部" } },
     downloads: { saved: "已保存", deleted: "已删除", canceled: "下载已取消", failed: "下载失败", busy: "另一本书正在下载", downloading: "下载中", choose: "选择文件夹", reset: "默认", notFound: "设备上未找到该书" },
     login: { form: { captchaStart: "完成验证", captchaDone: "验证已通过", captchaAndroidOnly: "验证仅在应用(Android 或 PC)中可用,浏览器中不可用。", captchaFailed: "验证未通过,请重试。" } },
     tags: { kind: { tags: "标签", artists: "作者", characters: "角色", parodies: "原作", groups: "社团" } },

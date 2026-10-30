@@ -127,3 +127,8 @@ export async function requestCaptcha(siteKey: string, provider: string, labels: 
     );
   });
 }
+
+/** Адрес своего профиля (вкладка «Профиль» нижней панели); без входа — пусто. */
+export function ownProfileRoute(user: Me | null): string {
+  return user ? `/profile/${user.id}/${encodeURIComponent((user.slug || user.username || String(user.id)).toLowerCase())}` : "";
+}

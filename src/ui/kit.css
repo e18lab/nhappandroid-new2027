@@ -1,0 +1,389 @@
+/*
+ * Новый кит — редизайн в духе Anixart. Подключается последним: дополняет и переопределяет styles.css.
+ * Токены: --ax-surface (плашки), --ax-surface-2 (приподнятое), --ax-selected (выбранная «пилюля»
+ * с оттенком темы), --ax-nav (нижняя панель), --ax-line. Задаются в theme.ts (`kitTokens`).
+ */
+:root {
+  --ax-surface: #1a1a1a;
+  --ax-surface-2: #252525;
+  --ax-selected: #494458;
+  --ax-on-selected: #e8def7;
+  --ax-line: rgba(255, 255, 255, 0.1);
+  --ax-nav: #252525;
+  --ax-nav-icon: #757575;
+  --ax-muted: #757575;
+  --ax-nav-space: 96px;
+  /* Кривые и длительности из APK: fast_out_slow_in, screen_open/close (120 мс), screen_tab (180 мс) */
+  --ax-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --ax-decel: cubic-bezier(0.215, 0.61, 0.355, 1);
+  /* Тени «плавающих» плашек: key + ambient (floating_tab_bar_shadow_*, floating_tabs_shadow_*) */
+  --ax-float-shadow: 0 4px 6px rgba(0, 0, 0, 0.33), 0 0 3px rgba(0, 0, 0, 0.075);
+  --ax-tabs-shadow: 0 1.5px 4px rgba(0, 0, 0, 0.165), 0 0 3px rgba(0, 0, 0, 0.075);
+}
+
+.ax-app .main { transition: none; }
+.ax-app .top-chrome { background: var(--bg); }
+.ax-app .topbar { background: var(--bg); border-bottom: 0; box-shadow: none; height: 56px; }
+.has-nav .screen-scroll { padding-bottom: var(--ax-nav-space); }
+
+/* ── Кнопки ── */
+.ax-icon-btn {
+  flex: none;
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--icon);
+}
+.ax-icon-btn:active { background: var(--ax-surface-2); }
+.ax-btn {
+  height: 48px;
+  padding: 0 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 999px;
+  font-size: 16px;
+  font-weight: 600;
+}
+.ax-btn-primary { background: var(--accent); color: var(--on-accent); }
+.ax-btn-ghost { background: var(--ax-surface-2); color: var(--txt); }
+
+/* ── Шапка главных разделов ── */
+.ax-header {
+  flex: none;
+  height: 64px; /* actionBarSize */
+  padding: 0 12px 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg);
+}
+.ax-header-logo { flex: none; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 14px; background: none; overflow: hidden; }
+.ax-header-logo img { width: 100%; height: 100%; object-fit: cover; }
+.ax-header-title { flex: 1; min-width: 0; margin: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 22px; font-weight: 700; color: var(--title); }
+.ax-header-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.ax-header-actions .topbar-btn { color: var(--icon); }
+.ax-header-avatar {
+  flex: none;
+  width: 42px;
+  height: 42px;
+  margin-left: 4px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 0;
+  border-radius: 50%;
+  background: var(--ax-surface-2);
+  color: var(--icon);
+}
+.ax-header-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+/* ── Вкладки и лента страниц ──
+ * Как FloatingTabsBar в Anixart: плашка по ширине содержимого (не на весь экран), отступы 16 по бокам,
+ * 4 сверху и 8 снизу, внутри 4; вкладка 28 высотой, по 16 по бокам, 14px medium;
+ * выбранная — «пилюля» indicator_active, подпись label_checked; края полосы гаснут на 24px. */
+.ax-home { position: relative; --ax-tabs-space: 48px; }
+/* Полоса вкладок лежит поверх ленты: вокруг плашки прозрачно, сама плашка полупрозрачная с размытием —
+ * прокручиваемый список виден под ней. Сверху у каждой страницы — отступ на высоту полосы. */
+.ax-home-tabs {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  padding: 4px 16px 8px;
+  display: flex;
+  pointer-events: none;
+}
+.ax-home-tabs > * { pointer-events: auto; }
+.ax-home .ax-pager-page > * { padding-top: var(--ax-tabs-space); }
+.ax-home .ax-pager-page > .screen-scroll { scroll-padding-top: var(--ax-tabs-space); }
+.ax-tabs {
+  max-width: 100%;
+  min-width: 0;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ax-nav) 82%, transparent);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  box-shadow: var(--ax-tabs-shadow);
+}
+.ax-tabs-leading { flex: none; display: flex; }
+.ax-tabs-btn { width: 36px; height: 28px; display: grid; place-items: center; border: 0; border-radius: 999px; background: none; color: var(--sub); }
+.ax-tabs-btn:active { background: var(--ax-surface-2); }
+.ax-tabs-strip {
+  position: relative;
+  flex: 0 1 auto;
+  min-width: 0;
+  height: 28px;
+  display: flex;
+  overflow-x: auto;
+  scrollbar-width: none;
+  border-radius: 999px;
+}
+.ax-tabs-strip.fade-end { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent); }
+.ax-tabs-strip.fade-start { -webkit-mask-image: linear-gradient(90deg, transparent, #000 24px); mask-image: linear-gradient(90deg, transparent, #000 24px); }
+.ax-tabs-strip.fade-start.fade-end {
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 24px, #000 calc(100% - 24px), transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 24px, #000 calc(100% - 24px), transparent);
+}
+.ax-tabs-strip::-webkit-scrollbar { display: none; }
+.ax-tabs-pill { position: absolute; top: 0; left: 0; height: 28px; border-radius: 999px; background: var(--ax-selected); pointer-events: none; }
+.ax-tab {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  min-width: 48px;
+  height: 28px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--sub);
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: color 0.15s;
+}
+.ax-tab.is-active { color: var(--ax-on-selected); }
+
+.ax-pager {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+.ax-pager::-webkit-scrollbar { display: none; }
+.ax-pager-page {
+  flex: 0 0 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  overflow: hidden;
+}
+
+/* ── Книга строкой ── */
+.ax-list {
+  padding: 6px 16px 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr));
+  gap: 22px 20px;
+}
+.ax-row { display: flex; gap: 18px; min-width: 0; cursor: pointer; }
+.ax-row-cover {
+  position: relative;
+  flex: none;
+  width: clamp(110px, 31vw, 156px);
+  aspect-ratio: 0.7;
+  overflow: hidden;
+  border-radius: 16px;
+  background: var(--ax-surface);
+}
+.ax-row-cover .smart-image { background: var(--ax-surface); }
+.ax-row-cover .smart-image-img { object-fit: cover; }
+.ax-row-cover.is-blacklisted .smart-image-img { filter: blur(14px); transform: scale(1.1); }
+.ax-row-hidden { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; background: rgba(0, 0, 0, 0.25); }
+.ax-row-new {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--new-badge-bg);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+}
+.ax-row-body { flex: 1; min-width: 0; padding-top: 4px; display: flex; flex-direction: column; }
+.ax-row-head { display: flex; align-items: flex-start; gap: 2px; }
+.ax-row-title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--title);
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 25px;
+  overflow-wrap: anywhere;
+}
+.ax-row-menu { flex: none; margin: -8px -10px 0 0; }
+.ax-row-meta { margin-top: 8px; color: var(--sub); font-size: 15px; line-height: 20px; white-space: pre; overflow: hidden; text-overflow: ellipsis; }
+.ax-row-desc {
+  margin: 10px 0 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: color-mix(in srgb, var(--sub) 85%, transparent);
+  font-size: 15px;
+  line-height: 22px;
+}
+.ax-row-skeleton {
+  display: block;
+  height: 66px;
+  margin-top: 12px;
+  border-radius: 12px;
+  background: linear-gradient(90deg, var(--ax-surface) 0%, var(--ax-surface-2) 50%, var(--ax-surface) 100%);
+  background-size: 200% 100%;
+  animation: ax-shimmer 1.4s linear infinite;
+}
+@keyframes ax-shimmer { to { background-position: -200% 0; } }
+.ax-feed-foot { min-height: 72px; display: grid; place-items: center; padding: 8px 0; }
+
+/* ── Нижняя панель ──
+ * Как FloatingTabBar в Anixart: плавающая плашка, отступы 12 по бокам и 16 снизу, внутри 4;
+ * вкладка 48 высотой, выделение с отступом 4 (пилюля 40); у выбранной раскрывается подпись 14px.
+ * Под панелью — затемнение фона (bottom_bar_backdrop_alpha), как BlurView там. */
+.ax-nav-backdrop {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 39;
+  height: calc(72px + env(safe-area-inset-bottom));
+  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--bg) 90%, transparent) 70%);
+  pointer-events: none;
+}
+.ax-nav {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  z-index: 40;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  pointer-events: none;
+}
+.ax-nav > * { pointer-events: auto; }
+.ax-nav-pill,
+.ax-nav-search {
+  background: color-mix(in srgb, var(--ax-nav) 90%, transparent);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  box-shadow: var(--ax-float-shadow);
+}
+.ax-nav-pill { padding: 4px; display: flex; border-radius: 999px; }
+.ax-nav-item {
+  position: relative;
+  height: 48px;
+  min-width: 56px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--ax-nav-icon);
+  font-size: 14px;
+  font-weight: 500;
+  transition: color 0.2s var(--ax-ease);
+}
+.ax-nav-item::before {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border-radius: 999px;
+  background: var(--ax-selected);
+  opacity: 0;
+  transform: scale(0.85);
+  transition: opacity 0.2s var(--ax-ease), transform 0.25s var(--ax-ease);
+}
+.ax-nav-item > * { position: relative; }
+.ax-nav-icon { padding: 0 16px; display: grid; place-items: center; transition: padding 0.25s var(--ax-ease); }
+.ax-nav-label {
+  max-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  opacity: 0;
+  transition: max-width 0.25s var(--ax-ease), opacity 0.15s var(--ax-ease), padding 0.25s var(--ax-ease);
+}
+.ax-nav-item.is-active { color: var(--ax-on-selected); }
+.ax-nav-item.is-active::before { opacity: 1; transform: none; }
+.ax-nav-item.is-active .ax-nav-icon { padding: 0 8px 0 16px; }
+.ax-nav-item.is-active .ax-nav-label { max-width: 140px; padding-right: 16px; opacity: 1; transition-delay: 0s, 0.08s, 0s; }
+.ax-nav-avatar { width: 28px; height: 28px; display: block; border-radius: 50%; object-fit: cover; }
+.ax-nav-item.is-active .ax-nav-avatar { box-shadow: 0 0 0 2px var(--ax-on-selected); }
+.ax-nav-search { flex: none; width: 56px; height: 56px; display: grid; place-items: center; border: 0; border-radius: 50%; color: var(--txt); }
+.ax-nav-search:active { background: var(--ax-selected); }
+
+/* ── Переходы экранов (screen_open_* / screen_close_* / screen_tab_* из APK) ──
+ * Вперёд: новый экран въезжает на 7% справа и проявляется (пауза 35 мс, 85 мс), старый уходит на 7% влево
+ * и гаснет за 35 мс; назад — зеркально. Между разделами нижней панели — сдвиг на всю ширину за 180 мс. */
+.ax-stack { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+.ax-layer { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--bg); }
+.ax-layer.is-exit { z-index: 0; pointer-events: none; }
+.ax-layer.is-enter { z-index: 1; }
+.ax-layer.open-enter { animation: ax-fade-in 85ms linear 35ms both, ax-from-right-7 120ms var(--ax-ease) both; }
+.ax-layer.open-exit { animation: ax-fade-out 35ms linear both, ax-to-left-7 120ms var(--ax-ease) both; }
+.ax-layer.close-enter { animation: ax-fade-in 85ms linear 35ms both, ax-from-left-7 120ms var(--ax-ease) both; }
+.ax-layer.close-exit { animation: ax-fade-out 35ms linear both, ax-to-right-7 120ms var(--ax-ease) both; }
+.ax-layer.tab-right-enter { animation: ax-from-right-full 180ms var(--ax-decel) both; }
+.ax-layer.tab-right-exit { animation: ax-to-left-full 180ms var(--ax-decel) both; }
+.ax-layer.tab-left-enter { animation: ax-from-left-full 180ms var(--ax-decel) both; }
+.ax-layer.tab-left-exit { animation: ax-to-right-full 180ms var(--ax-decel) both; }
+@keyframes ax-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ax-fade-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes ax-from-right-7 { from { transform: translateX(7%); } to { transform: none; } }
+@keyframes ax-from-left-7 { from { transform: translateX(-7%); } to { transform: none; } }
+@keyframes ax-to-left-7 { to { transform: translateX(-7%); } }
+@keyframes ax-to-right-7 { to { transform: translateX(7%); } }
+@keyframes ax-from-right-full { from { transform: translateX(100%); } to { transform: none; } }
+@keyframes ax-from-left-full { from { transform: translateX(-100%); } to { transform: none; } }
+@keyframes ax-to-left-full { to { transform: translateX(-100%); } }
+@keyframes ax-to-right-full { to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) { .ax-layer { animation: none !important; } }
+
+/* ── Профиль (вкладка) ── */
+.ax-me { padding: 4px 16px 0; }
+.ax-card { border-radius: 24px; background: var(--ax-surface); }
+.ax-card + .ax-card { margin-top: 12px; }
+.ax-me-account { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+.ax-me-user { width: 100%; padding: 0; display: flex; align-items: center; gap: 14px; border: 0; background: none; color: var(--icon); text-align: left; }
+.ax-me-avatar { flex: none; width: 60px; height: 60px; display: grid; place-items: center; overflow: hidden; border-radius: 50%; background: var(--ax-surface-2); color: var(--icon); }
+.ax-me-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.ax-me-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ax-me-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--title); font-size: 20px; font-weight: 700; }
+.ax-me-sub { color: var(--sub); font-size: 14px; line-height: 19px; }
+.ax-section-title { margin: 22px 6px 10px; color: var(--title); font-size: 18px; font-weight: 700; }
+.ax-list-card { padding: 6px; }
+.ax-list-row {
+  width: 100%;
+  height: 58px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border: 0;
+  border-radius: 18px;
+  background: none;
+  color: var(--sub);
+  text-align: left;
+}
+.ax-list-row:active { background: var(--ax-surface-2); }
+.ax-list-row:disabled { opacity: 0.5; }
+.ax-list-row-icon { flex: none; width: 38px; height: 38px; display: grid; place-items: center; border-radius: 12px; background: var(--ax-surface-2); color: var(--accent); }
+.ax-list-row-label { flex: 1; min-width: 0; color: var(--txt); font-size: 16px; font-weight: 500; }
+.ax-my { padding: 4px 16px 0; }

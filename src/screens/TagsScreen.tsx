@@ -297,7 +297,7 @@ function TagRow({
           onToggleFav();
         }}
       >
-        <Icon name="heart" size={16} />
+        <Icon name="heart" size={16} solid={fav} />
       </button>
       {mode && onRemove && (
         <button

@@ -1,179 +1,78 @@
 /**
- * Главная и результаты поиска — перенос `app/index.tsx` / `app/explore.tsx` (релиз 1.3.1).
- * Сетка по 25 карточек, внизу панель страниц, при пустом результате — плашка с действиями.
- * Сортировка, язык, страницы и дата берутся из меню фильтров в шапке.
+ * Главная — редизайн в духе Anixart. Сверху вкладки, листаются свайпом вбок:
+ * «Моя» (вся библиотека списком), «Новое» (каталог с бесконечной подгрузкой; сортировка — в фильтрах слева),
+ * дальше разделы библиотеки: загруженное, закладки, онлайн-избранное (после входа), история, теги.
+ * Последняя открытая вкладка запоминается (`ui.home.tab`).
+ *
+ * С `?query=` (результаты поиска) — одна лента с сортировкой из фильтров, как раньше.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { galleryCardToBook, type Book } from "../api/book";
-import { PER_PAGE } from "../api/galleries";
-import { fetchGalleryBrowsePaginated, totalFromPaginated } from "../api/galleryBrowse";
-import { initCdn } from "../api/media";
-import { BookGrid } from "../components/BookGrid";
-import { PaginationBar } from "../components/PaginationBar";
-import { errorText, useI18n } from "../i18n/I18nContext";
-import {
-  getPagesQuery,
-  getSort,
-  getTagFilters,
-  getUploaded,
-  setSort,
-  setUploaded,
-  useBrowseFilters,
-} from "../lib/browseFilters";
-import { rememberCards } from "../lib/bookCards";
-import { isBookBlacklisted, useBlacklistSets } from "../lib/blacklist";
-import { KEYS, getItem, setJSON } from "../lib/storage";
-import { Button, LoadingSpinner, NoResultsPanel } from "../ui";
+import type { ReactNode } from "react";
+import { useSearchParams } from "react-router-dom";
+import { CatalogFeed } from "../components/CatalogFeed";
+import { LibraryList } from "../components/LibraryList";
+import { useI18n } from "../i18n/I18nContext";
+import { useMe } from "../lib/session";
+import { getItem, setItem } from "../lib/storage";
+import { CatalogFilterButton } from "../shell/CatalogFilter";
+import { Icon, PageTabs, Pager, usePager } from "../ui";
+import { FavoritesOnlineScreen } from "./FavoritesOnlineScreen";
+import { DownloadedScreen, SavedScreen } from "./LibraryScreens";
+import { TagsScreen } from "./TagsScreen";
 
-/** Страница каталога с текущими фильтрами; один включённый тег идёт через `/galleries/tagged`. */
-function fetchBrowsePage(query: string, page: number) {
-  const tags = getTagFilters();
-  return fetchGalleryBrowsePaginated({
-    query: [query.trim(), getPagesQuery()].filter(Boolean).join(" "),
-    includes: tags.filter((f) => f.mode !== "exclude"),
-    excludes: tags.filter((f) => f.mode === "exclude"),
-    uploaded: getUploaded(),
-    sort: getSort(),
-    page,
-    per_page: PER_PAGE,
-  });
-}
+const TAB_KEY = "ui.home.tab";
+
+const TABS: { key: string; labelKey: string; needsLogin?: boolean; render: () => ReactNode }[] = [
+  { key: "my", labelKey: "home.tabs.my", render: () => <MyPage /> },
+  { key: "latest", labelKey: "home.tabs.latest", render: () => <CatalogFeed /> },
+  { key: "downloaded", labelKey: "menu.downloaded", render: () => <DownloadedScreen /> },
+  { key: "favorites", labelKey: "menu.favorites", render: () => <SavedScreen kind="favorites" /> },
+  { key: "online", labelKey: "menu.favoritesOnline", needsLogin: true, render: () => <FavoritesOnlineScreen /> },
+  { key: "history", labelKey: "menu.history", render: () => <SavedScreen kind="history" /> },
+  { key: "tags", labelKey: "menu.tags", render: () => <TagsScreen /> },
+];
 
 export function HomeScreen() {
-  const { t } = useI18n();
-  const navigate = useNavigate();
-  const [params, setParams] = useSearchParams();
-  const filters = useBrowseFilters();
+  const [params] = useSearchParams();
+  const me = useMe();
   const query = params.get("query") ?? "";
-  const page = Math.max(1, Number(params.get("page") || "1") || 1);
+  if (query.trim()) return <CatalogFeed query={query} />;
+  // Набор вкладок зависит от входа — при входе/выходе ленту собираем заново
+  return <HomePager key={me ? "in" : "out"} loggedIn={!!me} />;
+}
 
-  const [books, setBooks] = useState<Book[]>([]);
-  const [totalPages, setTotalPages] = useState(1);
-  const [state, setState] = useState<"loading" | "ready" | "empty" | "error">("loading");
-  const [error, setError] = useState<unknown>(null);
-  const [retry, setRetry] = useState(0);
-  // Бесконечная прокрутка (ui_infinite_scroll): без панели страниц, следующая страница — у конца списка
-  const infinite = getItem(KEYS.infiniteScroll) === "true";
-  const [extraPages, setExtraPages] = useState(0);
-  const loadingMore = useRef(false);
-  const scroller = useRef<HTMLDivElement>(null);
-  // В результатах поиска книги из чёрного списка убираются совсем (strictBlacklistMode), в каталоге — размываются
-  const blacklist = useBlacklistSets();
-  const strictBlacklist = query.trim().length > 0;
-  const visibleBooks = useMemo(
-    () => (strictBlacklist ? books.filter((b) => !isBookBlacklisted(b, blacklist)) : books),
-    [books, blacklist, strictBlacklist],
-  );
-
-  useEffect(() => {
-    let cancelled = false;
-    setState((s) => (s === "ready" ? s : "loading"));
-    (async () => {
-      try {
-        await initCdn();
-        const data = await fetchBrowsePage(query, page);
-        if (cancelled) return;
-        rememberCards(data.result);
-        setBooks(data.result.map(galleryCardToBook));
-        setExtraPages(0);
-        setTotalPages(Math.max(1, Math.ceil(totalFromPaginated(data) / PER_PAGE)));
-        setState(data.result.length ? "ready" : "empty");
-      } catch (e) {
-        if (cancelled) return;
-        setError(e);
-        setState("error");
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [query, page, filters, retry]);
-
-  const loadMore = async () => {
-    const next = page + extraPages + 1;
-    if (!infinite || loadingMore.current || next > totalPages) return;
-    loadingMore.current = true;
-    try {
-      const data = await fetchBrowsePage(query, next);
-      rememberCards(data.result);
-      setBooks((prev) => {
-        const seen = new Set(prev.map((b) => b.id));
-        return [...prev, ...data.result.filter((c) => !seen.has(c.id)).map(galleryCardToBook)];
-      });
-      setExtraPages((n) => n + 1);
-    } catch {
-      /* попробуем при следующей прокрутке */
-    } finally {
-      loadingMore.current = false;
-    }
-  };
-
-  const onScroll = () => {
-    const el = scroller.current;
-    if (el && el.scrollHeight - el.scrollTop - el.clientHeight < el.clientHeight * 0.6) void loadMore();
-  };
-
-  const goPage = (next: number) => {
-    const p = new URLSearchParams(params);
-    if (next <= 1) p.delete("page");
-    else p.set("page", String(next));
-    setParams(p);
-    scroller.current?.scrollTo({ top: 0 });
-  };
-
-  const openBook = (book: Book) =>
-    navigate(`/book/${book.id}?title=${encodeURIComponent(book.title.pretty)}`);
-
-  if (state === "empty" || (state === "ready" && strictBlacklist && books.length > 0 && visibleBooks.length === 0)) {
-    const reason = getUploaded() ? "dates" : getTagFilters().length ? "filters" : "general";
-    const title =
-      reason === "dates"
-        ? t("explore.noResults.title.dates")
-        : reason === "filters"
-          ? t("explore.noResults.title.filters")
-          : query.trim()
-            ? t("explore.noResults.title.query", { query: query.trim() })
-            : t("explore.noResults.title.general");
-    const base = [
-      { label: t("explore.noResults.actions.openFilters"), onPress: () => navigate("/tags") },
-      { label: t("explore.noResults.actions.fresh"), onPress: () => setSort("date") },
-      { label: t("explore.noResults.actions.popularMonth"), onPress: () => setSort("popular-month") },
-    ];
-    const first =
-      reason === "dates"
-        ? { label: t("explore.noResults.actions.resetDates"), onPress: () => setUploaded(null) }
-        : reason === "filters"
-          ? { label: t("explore.noResults.actions.resetFilters"), onPress: () => setJSON(KEYS.tagFilter, []) }
-          : {
-              label: t("explore.noResults.actions.changeQuery"),
-              onPress: () => navigate(`/search?query=${encodeURIComponent(query.trim())}`),
-            };
-    return (
-      <div className="screen-fill">
-        <NoResultsPanel
-          title={title}
-          subtitle={t("explore.noResults.subtitle")}
-          iconName={reason === "dates" ? "calendar" : reason === "filters" ? "filter" : "search"}
-          actions={[first, ...base]}
-        />
-      </div>
-    );
-  }
+function HomePager({ loggedIn }: { loggedIn: boolean }) {
+  const { t } = useI18n();
+  const tabs = TABS.filter((x) => !x.needsLogin || loggedIn);
+  const saved = tabs.findIndex((x) => x.key === (getItem(TAB_KEY) ?? "latest"));
+  const pager = usePager(tabs.length, saved >= 0 ? saved : 1);
 
   return (
-    <div className="screen-fill">
-      <div ref={scroller} className="screen-scroll" onScroll={infinite ? onScroll : undefined}>
-        {state === "loading" && books.length === 0 && <LoadingSpinner />}
-        {state === "error" && (
-          <div className="error-block">
-            <p>{errorText(t, error, "errors.catalog")}</p>
-            <Button title={t("common.retry")} variant="secondary" compact onPress={() => setRetry((n) => n + 1)} />
-          </div>
-        )}
-        {visibleBooks.length > 0 && state !== "error" && <BookGrid books={visibleBooks} onPress={openBook} />}
+    <div className="screen-fill ax-home">
+      <div className="ax-home-tabs">
+        <PageTabs
+          pager={pager}
+          tabs={tabs.map((x) => ({ key: x.key, label: t(x.labelKey) }))}
+          leading={
+            <CatalogFilterButton
+              trigger={({ onPress }) => (
+                <button type="button" className="ax-tabs-btn" aria-label={t("explore.filter.sortTitle")} onClick={onPress}>
+                  <Icon name="sliders" size={20} />
+                </button>
+              )}
+            />
+          }
+        />
       </div>
-      {state !== "error" && !infinite && <PaginationBar currentPage={page} totalPages={totalPages} onChange={goPage} />}
+      <Pager pager={pager} count={tabs.length} onIndexChange={(i) => setItem(TAB_KEY, tabs[i].key)} render={(i) => tabs[i].render()} />
+    </div>
+  );
+}
+
+/** Вкладка «Моя» — вся библиотека списком. */
+function MyPage() {
+  return (
+    <div className="screen-scroll ax-my">
+      <LibraryList />
     </div>
   );
 }

@@ -18,6 +18,7 @@ import { useI18n, type ResolvedLocale } from "../i18n/I18nContext";
 import { useEnrichedBooks } from "../lib/bookEnrich";
 import { useMe } from "../lib/session";
 import { Icon, LoadingSpinner, NhModal } from "../ui";
+import { MeLinks } from "./MeScreen";
 
 function decodeHtml(s: string): string {
   return s
@@ -207,6 +208,12 @@ export function ProfileScreen() {
           </div>
         </section>
       </div>
+
+      {canEdit && (
+        <div className="ax-me profile-own-links">
+          <MeLinks withLogout />
+        </div>
+      )}
 
       <NhModal visible={preview} onClose={() => setPreview(false)}>
         <img className="profile-avatar-preview" src={avatar} alt="" />

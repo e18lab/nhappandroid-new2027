@@ -36,3 +36,5 @@ export { Section, Typography } from "./Typography";
 export type { TypographyVariant } from "./Typography";
 export { ViewToggle } from "./ViewToggle";
 export type { ViewToggleOption } from "./ViewToggle";
+export { PageTabs, Pager, usePager } from "./Pager";
+export type { PagerTab } from "./Pager";

@@ -1,7 +1,7 @@
 /* Цвета по умолчанию до applyTheme; реальные значения задаёт theme.ts (палитра старого приложения). */
 :root {
-  --bg: #242324;
-  --page: #1c1b1c;
+  --bg: #121113;
+  --page: #0f0e10;
   --accent: #a892d3;
   --txt: #e8e6ec;
   --sub: #979797;
@@ -16,8 +16,8 @@
   --surface: #222122;
   --icon: #ceccd3;
   color-scheme: dark;
-  /* Старое приложение рисовало системным шрифтом: Roboto на Android, Segoe UI на Windows */
-  font-family: Roboto, system-ui, "Segoe UI", sans-serif;
+  /* Редизайн: MedeoSans (medeo-font), запасной — системный */
+  font-family: var(--font-medeo-sans, Roboto, system-ui, "Segoe UI", sans-serif);
   -webkit-tap-highlight-color: transparent;
   background: var(--bg);
   color: var(--txt);
@@ -1545,7 +1545,7 @@ button.book-chip:active { opacity: 0.75; }
 .tag-row-remove { padding: 6px; display: grid; place-items: center; border: 0; border-radius: 999px; background: none; color: var(--sub); }
 .tag-row-remove { padding: 8px; color: inherit; }
 .tag-row-fav.is-fav { color: var(--accent); }
-.tag-row-fav.is-fav svg { fill: currentColor; }
+/* .tag-row-fav.is-fav: заливку даёт Icon solid */
 
 .tags-selected { height: 100%; display: flex; flex-direction: column; padding: 12px 12px 0; }
 .tags-selected-head { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
@@ -1762,7 +1762,7 @@ button.book-chip:active { opacity: 0.75; }
 
 /* Онлайн-избранное на странице книги (красное сердечко, как в BookHeader) */
 .book-pill-like.is-liked { border-color: #ff5a5f; background: #ff5a5f1a; color: #ff5a5f; }
-.book-pill-like.is-liked svg { fill: currentColor; }
+/* .book-pill-like.is-liked: заливку даёт Icon solid */
 
 /* ── Онлайн-избранное (app/favoritesOnline.tsx, BookListOnline) ── */
 .fo-screen { position: relative; background: var(--bg); }
