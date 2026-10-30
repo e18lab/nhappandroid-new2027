@@ -11,7 +11,10 @@
     "android:init": "node scripts/tauri-android.mjs init",
     "android:dev": "node scripts/tauri-android.mjs dev",
     "android:build": "node scripts/tauri-android.mjs build --apk --debug",
-    "android:release": "node scripts/tauri-android.mjs build --apk"
+    "android:release": "node scripts/tauri-android.mjs build --apk",
+    "ota:keygen": "node scripts/ota-keygen.mjs",
+    "ota:pack": "vite build && node scripts/ota-pack.mjs",
+    "ota:serve": "node scripts/ota-serve.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
