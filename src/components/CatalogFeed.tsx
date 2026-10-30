@@ -17,6 +17,7 @@ import { rememberCards } from "../lib/bookCards";
 import { isBookBlacklisted, useBlacklistSets } from "../lib/blacklist";
 import { getPagesQuery, getSort, getTagFilters, getUploaded, setSort, setUploaded, useBrowseFilters } from "../lib/browseFilters";
 import { KEYS, setJSON } from "../lib/storage";
+import { useStableCallback } from "../lib/useStableCallback";
 import { Button, LoadingSpinner, NoResultsPanel, Spinner } from "../ui";
 import { BookCollection } from "./BookCollection";
 
@@ -117,8 +118,8 @@ export function CatalogFeed({ query = "", sort: fixedSort }: { query?: string; s
     // loadMore читает актуальные page/books через замыкание текущего рендера
   });
 
-  const openBook = (book: Book) => navigate(`/book/${book.id}?title=${encodeURIComponent(book.title.pretty)}`);
-  const readBook = (book: Book) => navigate(`/read/${book.id}`);
+  const openBook = useStableCallback((book: Book) => navigate(`/book/${book.id}?title=${encodeURIComponent(book.title.pretty)}`));
+  const readBook = useStableCallback((book: Book) => navigate(`/read/${book.id}`));
 
   if (state === "empty" || (state === "ready" && strict && books.length > 0 && visible.length === 0)) {
     const reason = getUploaded() ? "dates" : getTagFilters().length ? "filters" : "general";

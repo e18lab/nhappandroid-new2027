@@ -1,6 +1,8 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
+// Класс is-desktop у <html> — до первой отрисовки
+import "./lib/platform";
 // Шрифт MedeoSans (пакет medeo-font): обычный CSS с @font-face — вариант для Next.js здесь не подходит.
 import "medeo-font/sans.css";
 // Стили кита раньше стилей экранов: экраны дополняют и переопределяют кит.

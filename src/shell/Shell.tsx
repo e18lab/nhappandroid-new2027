@@ -19,15 +19,21 @@
  * как настройки Telegram на планшете, — иначе их содержимое растягивается на всю ширину. Экран под окном
  * («основа») остаётся смонтированным и не меняется; переходы между страницами окна идут внутри него.
  * Закрывается окно стрелкой/крестиком, нажатием по затемнению или «Назад».
+ *
+ * ПК (по платформе, `lib/platform.ts`): окно без системной рамки — сверху свой заголовок окна с поиском и
+ * кнопками окна, экраны — в скруглённой панели (`DesktopChrome.tsx`); разделы — вкладками главной.
+ * Нижней панели и шапки разделов нет.
  */
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { UNSAFE_LocationContext, useLocation, useNavigate, useNavigationType, type Location, type NavigationType } from "react-router-dom";
 import { useI18n } from "../i18n/I18nContext";
+import { IS_DESKTOP } from "../lib/platform";
 import { ownProfileRoute, useMe } from "../lib/session";
 import { AppHeader } from "./AppHeader";
 import { Icon, OverlayScrollbar } from "../ui";
 import { useAndroidBack } from "./androidBack";
 import { BottomNav, navIndex } from "./BottomNav";
+import { DesktopTitleBar } from "./DesktopChrome";
 import { DownloadBanner, DownloadNotifier } from "./DownloadBanner";
 import { useSwipeBack } from "./swipeBack";
 import { TopBar } from "./TopBar";
@@ -111,7 +117,8 @@ export function Shell({ children }: { children: ReactNode }) {
   const history = useRef<Location[]>([location]);
   const stack = useRef<HTMLDivElement>(null);
   const reader = location.pathname.startsWith("/read/");
-  const nav = showNav(location.pathname);
+  // На ПК нижней панели нет — разделы вкладками главной и кнопками в заголовке окна
+  const nav = !IS_DESKTOP && showNav(location.pathname);
 
   useAndroidBack(() => false);
 
@@ -188,17 +195,23 @@ export function Shell({ children }: { children: ReactNode }) {
     else navigate("/");
   };
 
+  // Стабильные обработчики для слоёв: слой перерисовывается, только если поменялись его адрес или класс
+  const latest = useRef({ navigate, closeWindow });
+  latest.current = { navigate, closeWindow };
+  const openMenu = useCallback(() => latest.current.navigate("/me"), []);
+  const closeWindowStable = useCallback(() => latest.current.closeWindow(), []);
+
   const renderLayer = (layer: Layer, className: string, windowed = false) => (
-    <UNSAFE_LocationContext.Provider key={layer.id} value={{ location: layer.location, navigationType: navType }}>
-      <ScreenLayer
-        className={className}
-        title={rootTitle(layer.location, own)}
-        onOpenMenu={() => navigate("/me")}
-        onClose={windowed ? closeWindow : undefined}
-      >
-        {children}
-      </ScreenLayer>
-    </UNSAFE_LocationContext.Provider>
+    <LayerView
+      key={layer.id}
+      location={layer.location}
+      className={className}
+      title={rootTitle(layer.location, own)}
+      onOpenMenu={openMenu}
+      onClose={windowed ? closeWindowStable : undefined}
+    >
+      {children}
+    </LayerView>
   );
   const plain = layers.filter((l) => !inWindow(l.location));
   const windowLayers = layers.filter((l) => inWindow(l.location));
@@ -206,14 +219,16 @@ export function Shell({ children }: { children: ReactNode }) {
 
   if (reader)
     return (
-      <div className="app app-reader">
+      <div className={IS_DESKTOP ? "app app-reader ax-desk" : "app app-reader"}>
+        {IS_DESKTOP && <DesktopTitleBar />}
         <DownloadNotifier />
-        {children}
+        <div className="app-reader-body">{children}</div>
       </div>
     );
 
   return (
-    <div className={nav ? "app ax-app has-nav" : "app ax-app"}>
+    <div className={IS_DESKTOP ? "app ax-app ax-desk" : nav ? "app ax-app has-nav" : "app ax-app"}>
+      {IS_DESKTOP && <DesktopTitleBar />}
       <div className="main">
         <div className="top-chrome" />
         <DownloadBanner />
@@ -224,7 +239,7 @@ export function Shell({ children }: { children: ReactNode }) {
           )}
           {windowLayers.length > 0 && (
             <div key="window" className={windowClosing ? "ax-window-host is-closing" : "ax-window-host"}>
-              <div className="ax-window-dim" onClick={closeWindow} />
+              <div className="ax-window-dim" onClick={closeWindowStable} />
               <div className="ax-window" role="dialog">
                 {windowLayers.map((layer) => renderLayer(layer, layer.className.replace("window-exit", ""), true))}
               </div>
@@ -237,6 +252,30 @@ export function Shell({ children }: { children: ReactNode }) {
     </div>
   );
 }
+
+/**
+ * Слой с подменённым адресом. Без memo каждый переход (а их состояния меняются по 2–3 раза на переход)
+ * перерисовывал все смонтированные экраны целиком — с длинными лентами это и давало лаги со временем.
+ */
+const LayerView = memo(function LayerView({
+  location,
+  ...rest
+}: {
+  location: Location;
+  className: string;
+  title: string | null | undefined;
+  onOpenMenu: () => void;
+  onClose?: () => void;
+  children: ReactNode;
+}) {
+  // Тип перехода экранам не нужен (никто его не читает) — постоянный, чтобы не перерисовывать слои при его смене
+  const value = useMemo(() => ({ location, navigationType: "POP" as NavigationType }), [location]);
+  return (
+    <UNSAFE_LocationContext.Provider value={value}>
+      <ScreenLayer {...rest} />
+    </UNSAFE_LocationContext.Provider>
+  );
+});
 
 /** Один экран со своей шапкой: у разделов — `AppHeader` (кроме настроек), у внутренних — `TopBar`. */
 function ScreenLayer({
@@ -257,7 +296,7 @@ function ScreenLayer({
   const { pathname } = useLocation();
   const root = title !== undefined;
   // Какая шапка у слоя: «app» — шапка раздела, «top» — строка с «назад», null — без шапки
-  const head = root ? (onClose || pathname === "/settings" ? null : "app") : pathname.startsWith("/search") ? null : "top";
+  const head = root ? (onClose || IS_DESKTOP || pathname === "/settings" ? null : "app") : pathname.startsWith("/search") ? null : "top";
   const ref = useRef<HTMLDivElement>(null);
   useScrollHead(ref, head !== null, pathname === "/");
   const header = root ? (
@@ -266,7 +305,7 @@ function ScreenLayer({
         <Icon name="x" size={22} />
       </button>
     ) : (
-      pathname !== "/settings" && <AppHeader title={title ? t(title) : undefined} />
+      !IS_DESKTOP && pathname !== "/settings" && <AppHeader title={title ? t(title) : undefined} />
     )
   ) : (
     !pathname.startsWith("/search") && <TopBar onOpenMenu={onOpenMenu} />

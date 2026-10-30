@@ -1,6 +1,7 @@
 /**
  * Главная — редизайн в духе Anixart. Сверху вкладки, листаются свайпом вбок:
- * «Моя» (вся библиотека списком), «Новое» (каталог с бесконечной подгрузкой; сортировка — в фильтрах слева),
+ * «Новое» (каталог с бесконечной подгрузкой; сортировка — в фильтрах у поиска),
+ * «Рекомендации»,
  * дальше разделы библиотеки: загруженное, закладки, онлайн-избранное (после входа), история, теги.
  * Последняя открытая вкладка запоминается (`ui.home.tab`).
  *
@@ -9,21 +10,22 @@
 import type { ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import { CatalogFeed } from "../components/CatalogFeed";
-import { LibraryList } from "../components/LibraryList";
 import { useI18n } from "../i18n/I18nContext";
+import { IS_DESKTOP } from "../lib/platform";
 import { useMe } from "../lib/session";
 import { getItem, setItem } from "../lib/storage";
-import { CatalogFilterButton } from "../shell/CatalogFilter";
-import { Icon, PageTabs, Pager, usePager } from "../ui";
+import { PageTabs, Pager, usePager } from "../ui";
 import { FavoritesOnlineScreen } from "./FavoritesOnlineScreen";
-import { DownloadedScreen, SavedScreen } from "./LibraryScreens";
+import { DownloadedScreen, NoteScreen, SavedScreen } from "./LibraryScreens";
 import { TagsScreen } from "./TagsScreen";
 
 const TAB_KEY = "ui.home.tab";
 
-const TABS: { key: string; labelKey: string; needsLogin?: boolean; render: () => ReactNode }[] = [
-  { key: "my", labelKey: "home.tabs.my", render: () => <MyPage /> },
+const TABS: { key: string; labelKey: string; needsLogin?: boolean; desktopOnly?: boolean; render: () => ReactNode }[] = [
   { key: "latest", labelKey: "home.tabs.latest", render: () => <CatalogFeed /> },
+  // На телефоне персонажи — в нижней панели, на ПК её нет
+  { key: "characters", labelKey: "nav.characters", desktopOnly: true, render: () => <NoteScreen titleKey="menu.characters" textKey="notes.characters" /> },
+  { key: "recommendations", labelKey: "menu.recommendations", render: () => <NoteScreen titleKey="menu.recommendations" textKey="notes.recommendations" /> },
   { key: "downloaded", labelKey: "menu.downloaded", render: () => <DownloadedScreen /> },
   { key: "favorites", labelKey: "menu.favorites", render: () => <SavedScreen kind="favorites" /> },
   { key: "online", labelKey: "menu.favoritesOnline", needsLogin: true, render: () => <FavoritesOnlineScreen /> },
@@ -42,9 +44,9 @@ export function HomeScreen() {
 
 function HomePager({ loggedIn }: { loggedIn: boolean }) {
   const { t } = useI18n();
-  const tabs = TABS.filter((x) => !x.needsLogin || loggedIn);
+  const tabs = TABS.filter((x) => (!x.needsLogin || loggedIn) && (!x.desktopOnly || IS_DESKTOP));
   const saved = tabs.findIndex((x) => x.key === (getItem(TAB_KEY) ?? "latest"));
-  const pager = usePager(tabs.length, saved >= 0 ? saved : 1);
+  const pager = usePager(tabs.length, saved >= 0 ? saved : tabs.findIndex((x) => x.key === "latest"));
 
   return (
     <div className="screen-fill ax-home">
@@ -52,27 +54,9 @@ function HomePager({ loggedIn }: { loggedIn: boolean }) {
         <PageTabs
           pager={pager}
           tabs={tabs.map((x) => ({ key: x.key, label: t(x.labelKey) }))}
-          leading={
-            <CatalogFilterButton
-              trigger={({ onPress }) => (
-                <button type="button" className="ax-tabs-btn" aria-label={t("explore.filter.sortTitle")} onClick={onPress}>
-                  <Icon name="sliders" size={20} />
-                </button>
-              )}
-            />
-          }
         />
       </div>
       <Pager pager={pager} count={tabs.length} onIndexChange={(i) => setItem(TAB_KEY, tabs[i].key)} render={(i) => tabs[i].render()} />
-    </div>
-  );
-}
-
-/** Вкладка «Моя» — вся библиотека списком. */
-function MyPage() {
-  return (
-    <div className="screen-scroll ax-my">
-      <LibraryList />
     </div>
   );
 }

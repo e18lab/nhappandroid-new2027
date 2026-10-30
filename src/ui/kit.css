@@ -1139,3 +1139,141 @@
 .ax-carousel-arrow.is-next { right: 8px; }
 .ax-carousel:hover .ax-carousel-arrow { opacity: 1; }
 @media (pointer: coarse) { .ax-carousel-arrow { display: none; } }
+
+/* ══ ПК (DesktopChrome, `html.is-desktop`) ══
+ * Окно без рамки: сверху заголовок окна, экраны — в скруглённой панели под ним. */
+.app-reader-body { position: relative; height: 100%; }
+.ax-desk {
+  --dk-title: 48px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: var(--dk-title) minmax(0, 1fr);
+  padding: 0;
+  background: #0b0b0b;
+}
+.ax-desk > .main {
+  height: auto;
+  min-width: 0;
+  min-height: 0;
+  margin: 0 8px 8px;
+  overflow: hidden;
+  border-radius: 18px;
+  background: var(--bg);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+.ax-desk .top-chrome { display: none; }
+.ax-desk.app-reader { background: #000; }
+.ax-desk > .app-reader-body { height: auto; min-height: 0; overflow: hidden; }
+
+/* Заголовок окна */
+.dk-titlebar { height: var(--dk-title); padding-left: 14px; display: flex; align-items: center; gap: 8px; user-select: none; -webkit-user-select: none; }
+.dk-brand { flex: none; display: flex; align-items: center; gap: 8px; padding-right: 6px; }
+.dk-brand img { width: 26px; height: 26px; border-radius: 8px; pointer-events: none; }
+.dk-brand b { color: var(--title); font-size: 15px; font-weight: 700; }
+.dk-brand span { color: var(--ax-muted); font-size: 12px; }
+.dk-histnav { flex: none; display: flex; gap: 2px; }
+.dk-btn { width: 34px; height: 34px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 10px; background: none; color: var(--sub); transition: background-color 0.15s, color 0.15s; }
+.dk-btn:hover { background: rgba(255, 255, 255, 0.07); color: var(--txt); }
+.dk-drag { flex: 1 1 0; align-self: stretch; min-width: 12px; }
+/* Поиск и фильтры — одна «таблетка»: строка поиска и справа круглая кнопка фильтров */
+.dk-searchbox {
+  flex: 0 1 500px;
+  min-width: 200px;
+  height: 36px;
+  padding-right: 3px;
+  display: flex;
+  align-items: center;
+  border-radius: 999px;
+  background: var(--ax-surface-2);
+}
+.dk-searchbox { gap: 4px; }
+.dk-round { flex: none; border-radius: 50%; background: var(--ax-surface-2); }
+.dk-searchbox .ui-dd,
+.dk-searchbox .ui-dd-anchor { flex: none; display: flex; align-self: center; }
+.dk-filter {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: var(--bg);
+  color: var(--sub);
+  transition: color 0.15s, background-color 0.15s;
+}
+.dk-filter:hover { color: var(--txt); background: color-mix(in srgb, var(--bg) 85%, #fff); }
+.dk-search {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0 6px 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--ax-muted);
+  font-size: 14px;
+  text-align: left;
+}
+.dk-search:hover { color: var(--sub); }
+.dk-search span { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.dk-search kbd { flex: none; padding: 3px 8px; border-radius: 999px; background: var(--bg); box-shadow: inset 0 0 0 1px var(--ax-line); color: var(--ax-muted); font: inherit; font-size: 11px; }
+.dk-actions { flex: none; display: flex; align-items: center; gap: 4px; }
+.dk-actions .topbar-btn { width: 34px; height: 34px; border-radius: 10px; color: var(--sub); }
+.dk-actions .topbar-btn:hover { background: rgba(255, 255, 255, 0.07); }
+.dk-avatar { width: 30px; height: 30px; margin: 0 4px; padding: 0; display: grid; place-items: center; overflow: hidden; border: 0; border-radius: 50%; background: var(--ax-surface-2); color: var(--sub); }
+.dk-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.dk-avatar:hover { box-shadow: 0 0 0 2px var(--ax-selected); }
+.dk-window { flex: none; align-self: stretch; margin-left: 6px; display: flex; }
+.dk-window button { width: 46px; padding: 0; display: grid; place-items: center; border: 0; background: none; color: var(--sub); transition: background-color 0.12s, color 0.12s; }
+.dk-window button:hover { background: rgba(255, 255, 255, 0.08); color: var(--txt); }
+.dk-window button.is-close:hover { background: #e81123; color: #fff; }
+
+
+/* Главная на ПК: вкладки по центру с подчёркиванием, на полупрозрачной полосе */
+.is-desktop .ax-home { --ax-tabs-space: 60px; }
+.is-desktop .ax-home-tabs {
+  padding: 10px 24px 8px;
+  justify-content: center;
+  background: color-mix(in srgb, var(--bg) 90%, transparent);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+.is-desktop .ax-tabs { padding: 0; gap: 10px; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; border-radius: 0; }
+.is-desktop .ax-tabs-strip { height: 38px; border-radius: 0; }
+.is-desktop .ax-tab { height: 38px; padding: 0 12px; border-radius: 0; color: var(--ax-muted); font-size: 15px; font-weight: 600; }
+.is-desktop .ax-tab:hover { color: var(--txt); }
+.is-desktop .ax-tab.is-active { color: var(--title); }
+.is-desktop .ax-tabs-pill {
+  top: auto;
+  bottom: 0;
+  height: 3px;
+  border-radius: 0;
+  background: linear-gradient(var(--ax-on-selected), var(--ax-on-selected)) center / calc(100% - 20px) 100% no-repeat;
+  transition: transform 0.25s var(--ax-tg), width 0.25s var(--ax-tg);
+}
+.is-desktop .ax-tabs-btn { width: 38px; height: 38px; border-radius: 50%; background: var(--ax-surface-2); color: var(--sub); }
+.is-desktop .ax-tabs-btn:hover { color: var(--txt); }
+
+/* Содержимое не растягивается на весь монитор */
+.is-desktop .ax-posters,
+.is-desktop .book-grid,
+.is-desktop .ax-list { max-width: 1680px; margin-left: auto; margin-right: auto; }
+.ax-header-actions .ui-dd,
+.ax-header-actions .ui-dd-anchor { display: flex; align-self: center; }
+/* Значок фильтра — «треугольник» из линий, тяжёлый сверху: опускаем, чтобы на глаз стоял по центру */
+.ax-filter-icon { transform: translateY(1px); }
+
+/* ── Производительность ──
+ * Карточки вне экрана браузер не отрисовывает (content-visibility), размер берёт
+ * запомненный — длинные ленты не тормозят прокрутку и переходы. Поле отсечения — для тени и подъёма
+ * карточки при наведении. Слои на время анимации — на отдельном слое композитора. */
+.ax-poster { content-visibility: auto; contain-intrinsic-block-size: auto 300px; overflow-clip-margin: 24px; }
+.ax-row { content-visibility: auto; contain-intrinsic-block-size: auto 140px; overflow-clip-margin: 24px; }
+.book-card { content-visibility: auto; contain-intrinsic-block-size: auto 360px; overflow-clip-margin: 24px; }
+.ax-layer[class*="-enter"],
+.ax-layer[class*="-exit"],
+.ax-layer[class*="tab-"] > .content { will-change: transform; }

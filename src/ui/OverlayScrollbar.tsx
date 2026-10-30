@@ -136,13 +136,20 @@ export function OverlayScrollbar() {
       if (t instanceof HTMLElement && !t.closest(SKIP) && scrollableY(t)) show(t);
     };
     let moveFrame = 0;
+    // Последний элемент под мышью и его прокручиваемый предок: пока мышь над тем же элементом,
+    // предка заново не ищем (поиск читает стили и размеры — дорого на каждое движение)
+    let hoverEl: EventTarget | null = null;
+    let hoverParent: HTMLElement | null = null;
     const onMove = (e: PointerEvent) => {
       if (e.pointerType !== "mouse" || drag || moveFrame) return;
       const t = e.target;
       moveFrame = requestAnimationFrame(() => {
         moveFrame = 0;
-        const el = scrollParent(t);
-        if (el) show(el);
+        if (t !== hoverEl) {
+          hoverEl = t;
+          hoverParent = scrollParent(t);
+        }
+        if (hoverParent?.isConnected) show(hoverParent);
       });
     };
 

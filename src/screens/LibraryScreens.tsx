@@ -19,6 +19,7 @@ import { cachedFullBook, useEnrichedBooks } from "../lib/bookEnrich";
 import { listDownloads, useDownloadState, type DownloadedBook } from "../lib/downloads";
 import { loadFavoriteIds, loadReadHistory, type ReadProgress } from "../lib/library";
 import { KEYS, getItem, setItem, subscribe } from "../lib/storage";
+import { useStableCallback } from "../lib/useStableCallback";
 import { FilterDropdown, Icon, LoadingSpinner, type IconName, type SelectItem } from "../ui";
 
 type ListSortValue = "added_desc" | "added_asc" | "year_desc" | "year_asc" | "alpha_asc" | "alpha_desc";
@@ -169,7 +170,7 @@ export function SavedScreen({ kind }: { kind: "favorites" | "history" }) {
   // Порядок «по добавлению»: закладки хранятся от старых к новым, история — новые первыми
   const addedOrder = kind === "favorites" ? ids : [...ids].reverse();
   const sorted = useMemo(() => sortBooks(books, sort, addedOrder), [books, sort, ids]);
-  const open = (b: Book) => navigate(`/book/${b.id}?title=${encodeURIComponent(b.title.pretty)}`);
+  const open = useStableCallback((b: Book) => navigate(`/book/${b.id}?title=${encodeURIComponent(b.title.pretty)}`));
 
   const empty = ids.length === 0;
   const emptyText = kind === "favorites" ? t("library.favoritesEmpty") : t("historyNotFound");
@@ -227,7 +228,7 @@ export function DownloadedScreen() {
       : [];
   const shown = [...downloadingCard, ...sorted];
   // Карточка загрузки (отрицательный id) не открывается, как в старом
-  const open = (b: Book) => b.id > 0 && navigate(`/book/${b.id}?title=${encodeURIComponent(b.title.pretty)}`);
+  const open = useStableCallback((b: Book) => void (b.id > 0 && navigate(`/book/${b.id}?title=${encodeURIComponent(b.title.pretty)}`)));
 
   return (
     <div className="screen-fill library-screen">

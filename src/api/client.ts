@@ -115,38 +115,44 @@ function buildHeaders(opts: RequestOptions, body: Body): Record<string, string> 
   return headers;
 }
 
-async function send(method: string, url: string, headers: Record<string, string>, body: Body): Promise<Response> {
+/**
+ * Таймаут — свой AbortController, который снимается, как только тело прочитано. С AbortSignal.timeout
+ * плагин HTTP через 20 с слал `fetch_cancel` по каждому уже завершённому запросу.
+ */
+async function send(method: string, url: string, headers: Record<string, string>, body: Body, signal: AbortSignal): Promise<Response> {
   const payload = body === undefined ? undefined : body instanceof FormData ? body : JSON.stringify(body);
   try {
     if (inTauri()) {
       const { fetch } = await import("@tauri-apps/plugin-http");
-      return await fetch(url, {
-        method,
-        headers,
-        body: payload,
-        connectTimeout: REQUEST_TIMEOUT_MS,
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-      });
+      return await fetch(url, { method, headers, body: payload, connectTimeout: REQUEST_TIMEOUT_MS, signal });
     }
-    return await fetch(url, { method, headers, body: payload, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
-  } catch (e) {
-    const timedOut = e instanceof DOMException && e.name === "TimeoutError";
-    throw timedOut
-      ? new ApiError("Request timed out", 0, "errors.timeout")
-      : new ApiError("Network error", 0, "errors.network");
+    return await fetch(url, { method, headers, body: payload, signal });
+  } catch {
+    throw signal.aborted ? new ApiError("Request timed out", 0, "errors.timeout") : new ApiError("Network error", 0, "errors.network");
   }
 }
 
 async function requestOnce<T>(method: string, path: string, opts: RequestOptions, body: Body): Promise<T> {
   const url = resolveUrl(path);
-  let response = await send(method, url, buildHeaders(opts, body), body);
+  const ctl = new AbortController();
+  const timer = window.setTimeout(() => ctl.abort(), REQUEST_TIMEOUT_MS);
+  let text: string;
+  let response: Response;
+  try {
+    response = await send(method, url, buildHeaders(opts, body), body, ctl.signal);
 
-  // Токен истёк — обновляем один раз и повторяем
-  if (response.status === 401 && !opts.skipRefresh && !opts.public && !opts.apiKey && loadRefreshToken()) {
-    if (await tryRefreshTokens()) response = await send(method, url, buildHeaders(opts, body), body);
+    // Токен истёк — обновляем один раз и повторяем
+    if (response.status === 401 && !opts.skipRefresh && !opts.public && !opts.apiKey && loadRefreshToken()) {
+      if (await tryRefreshTokens()) response = await send(method, url, buildHeaders(opts, body), body, ctl.signal);
+    }
+
+    text = await response.text().catch(() => {
+      throw ctl.signal.aborted ? new ApiError("Request timed out", 0, "errors.timeout") : new ApiError("Network error", 0, "errors.network");
+    });
+  } finally {
+    window.clearTimeout(timer);
   }
 
-  const text = await response.text();
   let data: unknown = null;
   if (text) {
     try {
@@ -209,9 +215,17 @@ async function tryRefreshTokens(): Promise<boolean> {
 
 // ─── Публичный интерфейс ──────────────────────────────────────────────────────
 
+/** Одинаковые GET, отправленные одновременно (два экрана, StrictMode), делят один запрос. */
+const inflight = new Map<string, Promise<unknown>>();
+
 export const nhApi = {
   get<T>(path: string, opts?: RequestOptions): Promise<T> {
-    return request<T>("GET", path, opts);
+    const key = `${path}|${opts?.public ? 1 : 0}|${opts?.apiKey ?? ""}|${JSON.stringify(opts?.headers ?? {})}`;
+    const hit = inflight.get(key);
+    if (hit) return hit as Promise<T>;
+    const p = request<T>("GET", path, opts).finally(() => inflight.delete(key));
+    inflight.set(key, p);
+    return p;
   },
   post<T>(path: string, body?: unknown, opts?: RequestOptions): Promise<T> {
     return request<T>("POST", path, opts, body);

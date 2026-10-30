@@ -5,7 +5,7 @@
  *
  * `enrich` — догружать полные данные (теги, дату) самому; лента каталога делает это сама и передаёт false.
  */
-import { useMemo, useRef } from "react";
+import { memo, useMemo, useRef } from "react";
 import type { Book } from "../api/book";
 import { thumbSources } from "../api/media";
 import { useI18n } from "../i18n/I18nContext";
@@ -104,7 +104,7 @@ function PosterGrid({ books, show, onPress, onRead }: { books: Book[]; show: Car
  * Плитка-постер — как карточка релиза в Anixart (item_release_card): обложка 0.7 со скруглением 16,
  * на ней метка «Новое», снизу на затемнении язык и лайки; под обложкой название в 2 строки и подпись.
  */
-export function PosterCard({ book, show, onPress, onRead }: { book: Book; show: CardShow; onPress: (b: Book) => void; onRead?: (b: Book) => void }) {
+export const PosterCard = memo(function PosterCard({ book, show, onPress, onRead }: { book: Book; show: CardShow; onPress: (b: Book) => void; onRead?: (b: Book) => void }) {
   const { t } = useI18n();
   const blacklist = useBlacklistSets();
   const hidden = useMemo(() => isBookBlacklisted(book, blacklist), [book, blacklist]);
@@ -141,4 +141,4 @@ export function PosterCard({ book, show, onPress, onRead }: { book: Book; show: 
       {sub.length > 0 && <div className="ax-poster-sub">{sub.join(" • ")}</div>}
     </div>
   );
-}
+});

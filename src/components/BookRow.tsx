@@ -7,7 +7,7 @@
  * `variant`: `list` — обычная строка; `compact` — меньше обложка и шрифт, без тегов.
  * `show` — что показывать (настройки карточек, `lib/cardView.ts`).
  */
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import { bookLanguage, type Book } from "../api/book";
 import { thumbSources } from "../api/media";
 import { useI18n } from "../i18n/I18nContext";
@@ -82,7 +82,7 @@ export function BookMenuButton({ book, onRead }: { book: Book; onRead?: (b: Book
   );
 }
 
-export function BookRow({
+export const BookRow = memo(function BookRow({
   book,
   onPress,
   onRead,
@@ -162,4 +162,4 @@ export function BookRow({
       </div>
     </div>
   );
-}
+});

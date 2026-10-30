@@ -1,6 +1,8 @@
 #[cfg(desktop)]
 mod captcha;
 mod downloads;
+#[cfg(desktop)]
+mod window_controls;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -13,6 +15,7 @@ pub fn run() {
     #[cfg(desktop)]
     let builder = builder.invoke_handler(tauri::generate_handler![
         captcha::open_captcha,
+        window_controls::window_control,
         downloads::downloads_dir,
         downloads::list_downloads,
         downloads::read_download,

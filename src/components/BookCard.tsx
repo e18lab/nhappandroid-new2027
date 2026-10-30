@@ -4,7 +4,7 @@
  * заголовок в 2 строки, строка «JP · 20 стр. · 31 мар. 2026», цветные чипы тегов
  * в 2 ряда с «+N», пока тегов нет — плашка «Собирается информация».
  */
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { bookLanguage, type Book } from "../api/book";
 import { thumbSources } from "../api/media";
 import { useI18n } from "../i18n/I18nContext";
@@ -39,7 +39,7 @@ export function formatShortDate(date: Date, locale: string): string {
   return `${get("day")} ${get("month")} ${get("year")}`;
 }
 
-export function BookCard({
+export const BookCard = memo(function BookCard({
   book,
   cardWidth,
   onPress,
@@ -196,4 +196,4 @@ export function BookCard({
       </div>
     </div>
   );
-}
+});

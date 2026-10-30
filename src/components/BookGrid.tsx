@@ -5,6 +5,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Book } from "../api/book";
 import { useEnrichedBooks } from "../lib/bookEnrich";
+import { IS_DESKTOP } from "../lib/platform";
 import { KEYS, getJSON, setJSON } from "../lib/storage";
 import { BookCard } from "./BookCard";
 
@@ -29,9 +30,7 @@ export const DEFAULT_GRID: Record<GridProfile, GridConfig> = {
   desktop: { numColumns: 0, paddingHorizontal: 16, columnGap: 12, cardWidth: 230 },
 };
 
-/** ПК: мышь или тачпад. У окна на ПК нет «портрета» и «планшета» — сетка подстраивается под ширину. */
-const DESKTOP_QUERY = "(hover: hover) and (pointer: fine)";
-export const isDesktop = () => window.matchMedia(DESKTOP_QUERY).matches;
+
 
 const GRID_EVENT = "nh-grid-config";
 
@@ -47,7 +46,8 @@ export function saveGridConfig(map: Record<GridProfile, GridConfig>) {
 
 /** Профиль экрана: ПК; иначе телефон или планшет (меньшая сторона от 600), портрет или ландшафт. */
 export function gridProfileFor(width: number, height: number): GridProfile {
-  if (isDesktop()) return "desktop";
+  // У окна на ПК нет «портрета» и «планшета» — сетка подстраивается под ширину
+  if (IS_DESKTOP) return "desktop";
   const tablet = Math.min(width, height) >= 600;
   const landscape = width > height;
   return tablet ? (landscape ? "tabletLandscape" : "tabletPortrait") : landscape ? "phoneLandscape" : "phonePortrait";
