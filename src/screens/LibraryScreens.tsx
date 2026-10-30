@@ -11,7 +11,8 @@ import { useNavigate } from "react-router-dom";
 import type { Book } from "../api/book";
 import { initCdn } from "../api/media";
 import { BookCard } from "../components/BookCard";
-import { BookGrid, useGridMetrics } from "../components/BookGrid";
+import { BookCollection } from "../components/BookCollection";
+import { useGridMetrics } from "../components/BookGrid";
 import { useI18n } from "../i18n/I18nContext";
 import { cachedCard } from "../lib/bookCards";
 import { cachedFullBook, useEnrichedBooks } from "../lib/bookEnrich";
@@ -186,7 +187,7 @@ export function SavedScreen({ kind }: { kind: "favorites" | "history" }) {
         ) : kind === "history" && sort === "added_desc" ? (
           <HistorySections books={books} history={history} locale={resolved} onPress={open} />
         ) : (
-          <BookGrid books={sorted} onPress={open} />
+          <BookCollection books={sorted} onPress={open} />
         )}
       </div>
     </div>
@@ -239,7 +240,7 @@ export function DownloadedScreen() {
         ) : shown.length === 0 ? (
           <p className="library-empty">{t("downloaded.noHaveADownloadBook")}</p>
         ) : (
-          <BookGrid books={shown} onPress={open} />
+          <BookCollection books={shown} onPress={open} />
         )}
       </div>
     </div>

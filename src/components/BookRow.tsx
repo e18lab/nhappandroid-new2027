@@ -1,16 +1,22 @@
 /**
- * Книга строкой — новый кит (в духе списка Anixart): обложка слева, справа заголовок,
- * строка «EN • 24 стр. • ♥ 1.2K», ниже теги серым в 3 строки, справа сверху «⋮» с действиями.
- * Пока полные данные не догружены, вместо тегов — бледная полоса. Книга из чёрного списка размыта.
+ * Книга строкой — новый кит (в духе списка Anixart): обложка слева со скруглением 16 и меткой «Новое»,
+ * справа название, строка с языком (плашкой), страницами, лайками и датой, ниже теги серым,
+ * справа сверху «⋮» с действиями. Пока полные данные не догружены, вместо тегов — бледная полоса.
+ * Книга из чёрного списка размыта.
+ *
+ * `variant`: `list` — обычная строка; `compact` — меньше обложка и шрифт, без тегов.
+ * `show` — что показывать (настройки карточек, `lib/cardView.ts`).
  */
 import { useMemo } from "react";
 import { bookLanguage, type Book } from "../api/book";
 import { thumbSources } from "../api/media";
 import { useI18n } from "../i18n/I18nContext";
 import { isBookBlacklisted, useBlacklistSets } from "../lib/blacklist";
+import type { CardShow } from "../lib/cardView";
 import { isFavorite, toggleFavorite } from "../lib/library";
 import { tagById, useTagsDbReady } from "../lib/tagsDb";
 import { FilterDropdown, Icon, type SelectItem } from "../ui";
+import { formatShortDate } from "./BookCard";
 import { SmartImage } from "./SmartImage";
 
 const NEW_WINDOW_MS = 2 * 60 * 60 * 1000;
@@ -23,18 +29,77 @@ export function fmtCount(n: number): string {
   return String(n);
 }
 
-export function BookRow({ book, onPress, onRead }: { book: Book; onPress: (b: Book) => void; onRead?: (b: Book) => void }) {
-  const { t } = useI18n();
-  const blacklist = useBlacklistSets();
-  const hidden = useMemo(() => isBookBlacklisted(book, blacklist), [book, blacklist]);
-
+/** Сведения для подписи карточки: язык (JP вместо JA), страницы, дата, «новая ли». */
+export function useBookFacts(book: Book) {
+  const { resolved } = useI18n();
   const lang = (() => {
     const s = (bookLanguage(book) ?? "").slice(0, 2).toUpperCase();
     return s === "JA" ? "JP" : s;
   })();
   const pages = book.pagesCount || book.pages.length || 0;
-  const uploaded = book.uploaded ? Date.parse(book.uploaded) : NaN;
-  const isNew = Number.isFinite(uploaded) && Date.now() - uploaded >= 0 && Date.now() - uploaded <= NEW_WINDOW_MS;
+  const uploaded = book.uploaded ? new Date(book.uploaded) : null;
+  const valid = uploaded && Number.isFinite(uploaded.getTime()) ? uploaded : null;
+  const age = valid ? Date.now() - valid.getTime() : NaN;
+  return {
+    lang,
+    pages,
+    date: valid ? formatShortDate(valid, resolved) : "",
+    isNew: age >= 0 && age <= NEW_WINDOW_MS,
+  };
+}
+
+/** Меню «⋮» карточки: в закладки, читать. */
+export function useBookMenu(book: Book, onRead?: (b: Book) => void): SelectItem[] {
+  const { t } = useI18n();
+  const fav = isFavorite(book.id);
+  return [
+    {
+      type: "action",
+      label: fav ? t("book.inFavorites") : t("book.addFavorite"),
+      icon: <Icon name="bookmark" size={16} solid={fav} />,
+      onPress: () => toggleFavorite(book.id),
+    },
+    ...(onRead ? [{ type: "action" as const, label: t("book.read"), icon: <Icon name="book-open" size={16} />, onPress: () => onRead(book) }] : []),
+  ];
+}
+
+export function BookMenuButton({ book, onRead }: { book: Book; onRead?: (b: Book) => void }) {
+  const { t } = useI18n();
+  const menu = useBookMenu(book, onRead);
+  return (
+    <span className="ax-row-menu" onClick={(e) => e.stopPropagation()}>
+      <FilterDropdown
+        options={menu}
+        hideRadio
+        minWidth={200}
+        trigger={({ onPress }) => (
+          <button type="button" className="ax-icon-btn" aria-label={t("common.chooseOption")} onClick={onPress}>
+            <Icon name="more-vertical" size={20} />
+          </button>
+        )}
+      />
+    </span>
+  );
+}
+
+export function BookRow({
+  book,
+  onPress,
+  onRead,
+  variant = "list",
+  show = { tags: true, meta: true, newBadge: true, date: false },
+}: {
+  book: Book;
+  onPress: (b: Book) => void;
+  onRead?: (b: Book) => void;
+  variant?: "list" | "compact";
+  show?: CardShow;
+}) {
+  const { t } = useI18n();
+  const blacklist = useBlacklistSets();
+  const hidden = useMemo(() => isBookBlacklisted(book, blacklist), [book, blacklist]);
+  const facts = useBookFacts(book);
+  const compact = variant === "compact";
 
   // Строка тегов: из полных данных, а до них — по `tag_ids` карточки через локальный справочник
   const dbReady = useTagsDbReady();
@@ -52,26 +117,13 @@ export function BookRow({ book, onPress, onRead }: { book: Book; onPress: (b: Bo
     return [...new Set(names)].join(", ");
   }, [book, dbReady]);
 
-  const fav = isFavorite(book.id);
-  const menu: SelectItem[] = [
-    {
-      type: "action",
-      label: fav ? t("book.inFavorites") : t("book.addFavorite"),
-      icon: <Icon name="bookmark" size={16} />,
-      onPress: () => toggleFavorite(book.id),
-    },
-    ...(onRead
-      ? [{ type: "action" as const, label: t("book.read"), icon: <Icon name="book-open" size={16} />, onPress: () => onRead(book) }]
-      : []),
-  ];
-
-  const meta = [lang, pages ? t("book.pagesShort", { count: pages }) : "", book.favorites ? `♥ ${fmtCount(book.favorites)}` : ""].filter(Boolean);
+  const showTags = show.tags && !compact;
 
   return (
-    <div className="ax-row" role="button" tabIndex={0} onClick={() => onPress(book)}>
+    <div className={compact ? "ax-row is-compact" : "ax-row"} role="button" tabIndex={0} onClick={() => onPress(book)}>
       <div className={hidden ? "ax-row-cover is-blacklisted" : "ax-row-cover"}>
         <SmartImage sources={thumbSources(book.cover)} />
-        {isNew && <span className="ax-row-new">{t("book.new")}</span>}
+        {show.newBadge && facts.isNew && <span className="ax-row-new">{t("book.new")}</span>}
         {hidden && (
           <span className="ax-row-hidden">
             <Icon name="eye-off" size={14} />
@@ -81,21 +133,32 @@ export function BookRow({ book, onPress, onRead }: { book: Book; onPress: (b: Bo
       <div className="ax-row-body">
         <div className="ax-row-head">
           <h3 className="ax-row-title">{book.title.pretty || book.title.english || `#${book.id}`}</h3>
-          <span className="ax-row-menu" onClick={(e) => e.stopPropagation()}>
-            <FilterDropdown
-              options={menu}
-              hideRadio
-              minWidth={200}
-              trigger={({ onPress }) => (
-                <button type="button" className="ax-icon-btn" aria-label={t("common.chooseOption")} onClick={onPress}>
-                  <Icon name="more-vertical" size={20} />
-                </button>
-              )}
-            />
-          </span>
+          <BookMenuButton book={book} onRead={onRead} />
         </div>
-        {meta.length > 0 && <div className="ax-row-meta">{meta.join("  •  ")}</div>}
-        {tags ? <p className="ax-row-desc">{tags}</p> : !book.full && !dbReady && <span className="ax-row-skeleton" />}
+        {(show.meta || show.date) && (
+          <div className="ax-row-meta">
+            {show.meta && facts.lang && <span className="ax-lang">{facts.lang}</span>}
+            {show.meta && !!facts.pages && (
+              <span className="ax-fact">
+                <Icon name="file-text" size={14} />
+                {facts.pages}
+              </span>
+            )}
+            {show.meta && !!book.favorites && (
+              <span className="ax-fact">
+                <Icon name="heart" size={14} />
+                {fmtCount(book.favorites)}
+              </span>
+            )}
+            {show.date && facts.date && (
+              <span className="ax-fact">
+                <Icon name="calendar" size={14} />
+                {facts.date}
+              </span>
+            )}
+          </div>
+        )}
+        {showTags && (tags ? <p className="ax-row-desc">{tags}</p> : !book.full && !dbReady && <span className="ax-row-skeleton" />)}
       </div>
     </div>
   );

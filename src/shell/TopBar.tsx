@@ -51,8 +51,11 @@ export function TopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
         return t("menu.history");
       case "characters":
         return t("menu.characters");
-      case "settings":
-        return t("menu.settings");
+      case "settings": {
+        // Страница раздела (/settings/grid …) — его название
+        const sub = pathname.split("/")[2];
+        return sub ? t(`settings.section.${sub}`) : t("menu.settings");
+      }
       case "book":
         return `#${pathname.split("/")[2] ?? ""} - ${params.get("title") ?? ""}`;
       case "tags":

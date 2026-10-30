@@ -1,5 +1,5 @@
 /**
- * Лента каталога — новый кит: книги строками (`BookRow`) с бесконечной подгрузкой вместо панели страниц.
+ * Лента каталога — новый кит: книги в выбранном виде карточек (`BookCollection`) с бесконечной подгрузкой вместо панели страниц.
  * Следующая страница запрашивается, когда низ списка подходит к экрану (IntersectionObserver).
  * Фильтры (язык, страницы, дата, теги) — общие из `browseFilters`; сортировку задаёт вкладка (`sort`),
  * без неё — сортировка из фильтров (результаты поиска). Каждая лента — со своей вертикальной прокруткой.
@@ -18,7 +18,7 @@ import { isBookBlacklisted, useBlacklistSets } from "../lib/blacklist";
 import { getPagesQuery, getSort, getTagFilters, getUploaded, setSort, setUploaded, useBrowseFilters } from "../lib/browseFilters";
 import { KEYS, setJSON } from "../lib/storage";
 import { Button, LoadingSpinner, NoResultsPanel, Spinner } from "../ui";
-import { BookRow } from "./BookRow";
+import { BookCollection } from "./BookCollection";
 
 function fetchPage(query: string, page: number, sort: SortOrder) {
   const tags = getTagFilters();
@@ -163,11 +163,7 @@ export function CatalogFeed({ query = "", sort: fixedSort }: { query?: string; s
       )}
       {state === "ready" && (
         <>
-          <div className="ax-list">
-            {visible.map((b) => (
-              <BookRow key={b.id} book={b} onPress={openBook} onRead={readBook} />
-            ))}
-          </div>
+          <BookCollection books={visible} enrich={false} onPress={openBook} onRead={readBook} />
           <div ref={sentinel} className="ax-feed-foot">
             {moreError ? (
               <Button title={t("common.retry")} variant="secondary" compact onPress={() => void loadMore()} />

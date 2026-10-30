@@ -24,6 +24,7 @@ export const KEYS = {
   resetTagsOnBookTagNav: "reset_tags_on_book_tag_nav",
   galleryColumns: "galleryColumns",
   gridConfig: "grid_config_map_v2",
+  cardView: "ui.cards.v1", // { view, show } — вид карточек книг (lib/cardView.ts)
 
   // Сортировки списков
   sortFavorites: "ui.sort.favorites",

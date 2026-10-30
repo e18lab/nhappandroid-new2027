@@ -16,12 +16,13 @@ export type {
   SelectOption as FilterDropdownOption,
   SelectSubmenu,
 } from "./FilterDropdown";
-export { Icon } from "./Icon";
+export { ICON_NAMES, Icon } from "./Icon";
 export type { IconName } from "./Icon";
 export { KeyInputModal } from "./KeyInputModal";
 export { LoadingSpinner, Spinner } from "./LoadingSpinner";
 export { NhModal } from "./NhModal";
 export { NoResultsPanel } from "./NoResultsPanel";
+export { OverlayScrollbar } from "./OverlayScrollbar";
 export { OverlayPortalProvider, useOverlayPortal } from "./OverlayPortal";
 export { Select } from "./Select";
 export type { SelectOption, SelectProps } from "./Select";
@@ -38,3 +39,4 @@ export { ViewToggle } from "./ViewToggle";
 export type { ViewToggleOption } from "./ViewToggle";
 export { PageTabs, Pager, usePager } from "./Pager";
 export type { PagerTab } from "./Pager";
+export { ListField, ListGroup, ListHint, ListRow, RadioRow, StepperRow, SwitchRow, TileIcon } from "./List";

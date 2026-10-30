@@ -12,7 +12,7 @@ import {
   MediaImage, InfoCircle, Key, ViewColumns3, List, Refresh, Lock, Mail, LogIn, LogOut, Maximize, Reduce, ChatBubble,
   ChatLines, MoreVert, Minus, MinusCircle, Box, Pause, DesignNib, Plus, PlusCircle, RefreshCircle, Repeat, Undo,
   FloppyDisk, Search, Send, Settings, Shield, Shuffle, FilterList, SmartphoneDevice, Square, Star, SunLight, Label,
-  Trash, GraphUp, Text, Upload, User, Group, Xmark, XmarkCircle,
+  Trash, GraphUp, Text, Upload, User, Group, Xmark, XmarkCircle, Palette, Discord, Language, DiceFive,
 } from "iconoir-react";
 import { Heart as HeartSolid, Star as StarSolid, Bookmark as BookmarkSolid, Book as BookSolid } from "iconoir-react/solid";
 
@@ -50,6 +50,8 @@ const ICONS = {
   copy: Copy,
   cpu: Cpu,
   database: Database,
+  dice: DiceFive,
+  discord: Discord,
   download: Download,
   "edit-2": EditPencil,
   "edit-3": Edit,
@@ -66,6 +68,7 @@ const ICONS = {
   image: MediaImage,
   info: InfoCircle,
   key: Key,
+  language: Language,
   layout: ViewColumns3,
   list: List,
   loader: Refresh,
@@ -82,6 +85,7 @@ const ICONS = {
   minus: Minus,
   "minus-circle": MinusCircle,
   package: Box,
+  palette: Palette,
   pause: Pause,
   "pen-tool": DesignNib,
   plus: Plus,
@@ -113,6 +117,9 @@ const ICONS = {
 } satisfies Record<string, IconCmp>;
 
 export type IconName = keyof typeof ICONS;
+
+/** Все имена — для витрины UI-кита. */
+export const ICON_NAMES = Object.keys(ICONS) as IconName[];
 
 const SOLID: Partial<Record<IconName, IconCmp>> = {
   heart: HeartSolid,
