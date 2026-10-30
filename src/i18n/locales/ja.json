@@ -1,0 +1,797 @@
+{
+  "downloadUpdate": "アップデートをダウンロード",
+  "app": {
+    "version": {
+      "beta": "ベータ"
+    }
+  },
+  "book": {
+    "cancelDownload": "ダウンロードをキャンセル",
+    "continuePage": "ページ {page} から続ける",
+    "download": "ダウンロード",
+    "fromRandomCta": "別のを試す？",
+    "gallery": "ギャラリー",
+    "new": "新着",
+    "read": "読む",
+    "readAgain": "もう一度読む",
+    "removeDownload": "ダウンロードを削除",
+    "removeDownloadConfirm": "このダウンロード済みの本を端末から削除しますか？",
+    "pages": "ページ数",
+    "showAll": "すべて表示"
+  },
+  "commentComposer": {
+    "placeholder": "コメントを書く…",
+    "hint": {
+      "needMore": "送信まであと{n}文字",
+      "captcha": "送信後にキャプチャを解いてコメントを投稿してください。"
+    },
+    "status": {
+      "pow": "セキュリティチェック中…",
+      "captcha": "キャプチャを解いてください…",
+      "posting": "コメントを投稿中…"
+    },
+    "captcha": {
+      "title": "本人確認",
+      "subtitle": "キャプチャを完了してコメントを投稿してください"
+    },
+    "error": {
+      "captchaUnavailable": "キャプチャが利用できません。後でもう一度お試しください。"
+    }
+  },
+  "cloudflare": {
+    "title": "Cloudflare 確認",
+    "caption": {
+      "tap": "Cloudflare のウィジェットが表示されました。チェックボックスをタップするとコメントが自動で送信されます。",
+      "preparing": "キャプチャウィジェットを準備中…"
+    },
+    "requesting": "キャプチャを取得中…",
+    "actions": {
+      "reload": "再読み込み",
+      "close": "閉じる"
+    },
+    "stats": {
+      "attempts": "試行回数: {n}"
+    }
+  },
+  "toast": {
+    "errorTitle": "エラー",
+    "httpErrorTitle": "HTTP {code}",
+    "httpErrorGeneric": "HTTP {code}",
+    "genericFailure": "操作を完了できませんでした。",
+    "avatarUploadNotImplemented": "サーバー側でアバターのアップロードがまだ実装されていません。"
+  },
+  "bookcard": {
+    "collectingInfo": "情報を取得中",
+    "hiddenByBlacklist": "ブラックリストにより非表示"
+  },
+  "comments": {
+    "title": "コメント",
+    "totalCount": "合計 {count}",
+    "sort": {
+      "newest": "新しい順",
+      "oldest": "古い順"
+    },
+    "menu": {
+      "translate": "コメントを翻訳",
+      "showOriginal": "原文を表示",
+      "showTranslation": "翻訳を表示",
+      "copy": "テキストをコピー",
+      "delete": "削除"
+    },
+    "badge": {
+      "translated": "翻訳を表示中"
+    },
+    "mine": "あなたのコメント",
+    "delete": {
+      "title": "このコメントを削除しますか？",
+      "cancel": "キャンセル",
+      "confirm": "削除"
+    },
+    "error": {
+      "title": "エラー",
+      "translate": "コメントを翻訳できませんでした。",
+      "delete": "コメントを削除できませんでした。"
+    },
+    "copied": "コピーしました",
+    "writeComment": "コメントを書く...",
+    "youComment": "あなたのコメント"
+  },
+  "common": {
+    "reset": "リセット",
+    "back": "戻る",
+    "cancel": "キャンセル",
+    "nextPage": "次へ",
+    "ok": "OK",
+    "save": "保存",
+    "tapHere": "ここをタップ",
+    "yes": "はい",
+    "chooseOption": "オプションを選択",
+    "nothingFound": "見つかりませんでした。",
+    "select": "選択",
+    "cancelSelection": "選択をキャンセル",
+    "searchPlaceholder": "検索…",
+    "undo": "元に戻す",
+    "selectAll": "すべて選択",
+    "delete": "削除",
+    "close": "閉じる",
+    "hide": "非表示にする",
+    "clearSelection": "選択を解除",
+    "retry": "再試行",
+    "loading": "読み込み中…",
+    "apply": "適用"
+  },
+  "explore": {
+    "sort": {
+      "latest": "新着",
+      "popular": "人気",
+      "popularMonth": "今月の人気",
+      "popularToday": "今日の人気",
+      "popularWeek": "今週の人気"
+    },
+    "dateRange": "日付フィルター",
+    "date": {
+      "1h": "1時間",
+      "24h": "24時間",
+      "3d": "3日間",
+      "7d": "1週間",
+      "30d": "1ヶ月",
+      "90d": "3ヶ月",
+      "180d": "6ヶ月",
+      "1y": "1年",
+      "customRange": "日付を指定…",
+      "back": "戻る",
+      "backToDateList": "日付選択に戻る",
+      "from": "開始 (YYYY.MM.DD)",
+      "to": "終了 (YYYY.MM.DD)",
+      "rangeHint": "日付は YYYY.MM.DD 形式。uploaded:>Xd uploaded:<Yd で検索。"
+    },
+    "dateRangeCustom": "日付範囲",
+    "noResults": {
+      "actions": {
+        "resetDates": "日付をリセット",
+        "openFilters": "フィルターを開く",
+        "resetFilters": "フィルターをリセット",
+        "changeQuery": "クエリを変更",
+        "popularMonth": "今月の人気",
+        "fresh": "新着"
+      },
+      "title": {
+        "query": "「{query}」の結果が見つかりません",
+        "filters": "選択したフィルターでは結果が見つかりません",
+        "default": "何も見つかりませんでした",
+        "dates": "選択した日付範囲には結果がありません",
+        "general": "結果が見つかりません"
+      },
+      "subtitle": "クエリを変更するか、フィルターを減らすか、日付範囲を広げてみてください。"
+    }
+  },
+  "historyNotFound": "履歴は空です ¯\\_(ツ)_/¯",
+  "lobby": {
+    "cloudTitle": "クラウド",
+    "cloudStatusConnecting": "クラウドに接続中…",
+    "cloudStatusReconnecting": "クラウドに再接続中… 同期までこの端末のみで保存されます。",
+    "cloudStatusLocalOnly": "クラウドに接続できません。この端末のみで動作中。復帰後に同期します。",
+    "noPeers": "接続されたデバイスはありません"
+  },
+  "profile": {
+    "edit": {
+      "title": "プロフィール設定",
+      "button": "プロフィール設定",
+      "electronOnly": "プロフィール設定はデスクトップアプリでのみ利用できます。",
+      "loading": "読み込み中…",
+      "avatar": "アバター",
+      "changeAvatar": "アバターを変更",
+      "removeAvatar": "アバターを削除",
+      "username": "ユーザー名",
+      "email": "メール",
+      "about": "自己紹介",
+      "favoriteTags": "お気に入りタグ",
+      "theme": "サイトのテーマ",
+      "changePassword": "パスワードを変更",
+      "oldPassword": "現在のパスワード",
+      "newPassword": "新しいパスワード",
+      "newPasswordAgain": "新しいパスワード（再入力）",
+      "blacklist": "ブラックリスト",
+      "saved": "保存しました",
+      "errorNetwork": "リクエストを送信できませんでした。接続を確認して再度お試しいただくか、ブラウザで nhentai.net のプロフィールを変更してください。",
+      "notLoggedIn": "ログインしていません。まず nhentai にログインしてください。",
+      "permissionTitle": "許可が必要です",
+      "permissionMessage": "アバターを選択するにはギャラリーへのアクセスが必要です。"
+    },
+    "blacklist": {
+      "title": "ブラックリスト",
+      "tags": "タグ",
+      "artists": "作家",
+      "parodies": "パロディ",
+      "characters": "キャラクター",
+      "groups": "サークル",
+      "languages": "言語",
+      "categories": "カテゴリ",
+      "save": "保存",
+      "addPlaceholder": "検索…",
+      "loading": "読み込み中…",
+      "saved": "保存しました",
+      "empty": "追加なし",
+      "toRemove": "削除予定",
+      "unsaved": "未保存の変更があります",
+      "description": "非表示のタグ、作家などを管理"
+    }
+  },
+  "menu": {
+    "downloaded": "ダウンロード済み",
+    "explore": "探索",
+    "favorites": "ブックマーク",
+    "history": "履歴",
+    "home": "ホーム",
+    "random": "おまかせ",
+    "recommendations": "おすすめ",
+    "new": "新着",
+    "comingSoon": "近日公開",
+    "search": "検索",
+    "settings": "設定",
+    "tags": "タグ",
+    "profile": "マイプロフィール",
+    "login": "ログイン",
+    "section": {
+      "library": "ライブラリ"
+    },
+    "favoritesOnline": "オンラインのお気に入り",
+    "brand": "NHApp",
+    "brandTag": "非公式",
+    "characters": "キャラクター",
+    "discordJoin": "Discord に参加する",
+    "discordSubtitle": "早期ビルドの入手、質問、アイデア共有ができます"
+  },
+  "login": {
+    "ready": "準備完了",
+    "loading": "読み込み中…",
+    "status": {
+      "loggedOut": "ログアウトしました。",
+      "cookiesSynced": "Cookie を同期しました。",
+      "tokensSaved": "トークンを保存しました。",
+      "notSigned": "ログインしていません。",
+      "navigating": "ログインページを開いています…",
+      "signedAs": "{user} としてログインしました。",
+      "cookiesFailed": "Cookie の同期に失敗しました。"
+    },
+    "sync": "同期",
+    "form": {
+      "registerTitle": "アカウント作成",
+      "resetTitle": "パスワード再設定",
+      "registerTab": "登録",
+      "resetTab": "忘れた",
+      "username": "ユーザー名",
+      "identifier": "ユーザー名またはメール",
+      "identifierPh": "ユーザー名またはメール",
+      "usernamePh": "ユーザー名",
+      "email": "メール",
+      "password": "パスワード",
+      "passwordAgain": "パスワード（確認）",
+      "captcha": "確認",
+      "captchaRequired": "まず確認を完了してください。",
+      "captchaUnavailable": "CAPTCHA の設定を読み込めませんでした。閉じて再度開くか、接続を確認してください。",
+      "captchaLoadHint": "読み込み中… 表示されない場合はしばらくしてからお試しください。",
+      "fillAll": "必須項目を入力してください。",
+      "passwordMismatch": "パスワードが一致しません。",
+      "emailRequired": "メールアドレスを入力してください。",
+      "failed": "エラーが発生しました。もう一度お試しください。",
+      "resetSent": "アカウントが存在する場合、メールで案内が届きます。",
+      "powWait": "セキュリティ確認を処理しています…",
+      "loginInProgress": "ログイン中、お待ちください…",
+      "submitReset": "再設定リンクを送る",
+      "submitRegister": "アカウント作成",
+      "submitLogin": "ログイン"
+    }
+  },
+  "reader": {
+    "banner": {
+      "dual": "見開き: {state}",
+      "fit": "モード: {mode}",
+      "fitContain": "合わせる",
+      "fitCover": "全画面",
+      "hand": "利き手切替: {state}",
+      "inspect": "検証: {state}",
+      "off": "オフ",
+      "on": "オン",
+      "orientation": "向き: {mode}",
+      "orientationHorizontal": "横",
+      "orientationVertical": "縦",
+      "tap": "タップでページ送り: {state}"
+    },
+    "controls": {
+      "back": "戻る",
+      "settings": "設定",
+      "vertical": "縦",
+      "horizontal": "横",
+      "dual": "見開きモード",
+      "fit": "フィット",
+      "fitContain": "合わせる",
+      "fitCover": "全画面",
+      "tap": "タップで切り替え",
+      "handSwap": "利き手切替",
+      "inspect": "検証",
+      "orientation": "向き",
+      "continuous": "連続スクロール",
+      "scroll": "スクロール"
+    },
+    "menuHint": "操作を開く",
+    "pagination": {
+      "goToPage": "ページへ移動"
+    }
+  },
+  "related": "関連",
+  "search": {
+    "results": "結果",
+    "placeholder": "タイトルやタグで検索",
+    "recent": "最近の検索",
+    "clearHistory": "履歴を消去",
+    "searchByImage": "画像で検索",
+    "imageSearchBusy": "画像検索中…",
+    "imageSearchNoMatches": "この画像に一致する nhentai はありません。",
+    "imageSearchOpenedBest": "{count} 件見つかりました — 最も近いものを開きました。",
+    "imageSearchResultsTitle": "画像検索",
+    "imageSearchSimilarity": "一致度",
+    "imageSearchNoPayload": "画像がありません。検索からもう一度選んでください。",
+    "imageSearchRetry": "再試行",
+    "imageSearchGoBack": "戻る",
+    "imageSearchPickOther": "別の画像を選ぶ"
+  },
+  "searchBar": {
+    "backHome": "ホームに戻る",
+    "backOne": "1つ戻る",
+    "backTwo": "2つ戻る"
+  },
+  "settings": {
+    "appearance": {
+      "hue": "色相: {deg}°",
+      "theme": "アプリのテーマ",
+      "presets": "プリセット",
+      "fullPalette": "フルパレット",
+      "infiniteScroll": "無限スクロール",
+      "infiniteScrollDesc": "ページネーションの代わりに下にスクロールすると次のページを自動的に読み込む",
+      "includeTagsOnBookTagNav": "本のタグから開くとき、現在のタグ条件を引き継ぐ？",
+      "includeTagsOnBookTagNavDesc": "オンの場合、本のタグを開くと現在のタグフィルターを保持します。オフの場合、そのタグのみで開き、現在のフィルターは無視します。"
+    },
+    "display": {
+      "androidNote": "Androidではフルスクリーン中でも下からスワイプでシステムバーを表示できます。",
+      "fullscreen": "フルスクリーン",
+      "fullscreenDesc": "ステータスバーとシステムナビゲーションを隠す。全画面表示。"
+    },
+    "language": {
+      "choose": "アプリの言語",
+      "current": "現在",
+      "english": "English",
+      "note": "インターフェースの言語のみ切り替えます。コンテンツの言語は影響しません。",
+      "russian": "Русский",
+      "japanese": "日本語",
+      "chinese": "中文",
+      "system": "システム"
+    },
+    "reader": {
+      "hideHints": "ヒントを非表示",
+      "hideHintsDesc": "リーダーでのヒントやジェスチャーの強調を隠す。"
+    },
+    "storage": {
+      "savePath": "保存パス",
+      "savePathDesc": "ダウンロードした本を保存するディレクトリ"
+    },
+    "section": {
+      "appearance": "外観",
+      "display": "表示",
+      "grid": "カタロググリッド",
+      "language": "言語",
+      "reader": "リーダー",
+      "storage": "デバイスストレージ",
+      "sync": "同期"
+    },
+    "sync": {
+      "title": "デバイス間でデータを同期",
+      "description": "QRコードでデータを共有するか、別のデバイスのQRコードをスキャンして同期します。",
+      "button": "データを同期"
+    },
+    "grid": {
+      "resetProfile": "このプロファイルをリセット",
+      "resetAll": "すべてのプロファイルをリセット",
+      "cardDesignTitle": "カードデザイン",
+      "preview": "プレビュー",
+      "layout": "レイアウト",
+      "spacing": "間隔",
+      "cardDesign": {
+        "image": "画像",
+        "classic": "クラシック",
+        "stable": "安定"
+      },
+      "minWidth": "実験的・カードの最小幅",
+      "columns": "列数",
+      "phoneLandscape": "スマホ（横向き）",
+      "tabletLandscape": "タブレット（横向き）",
+      "phonePortrait": "スマホ（縦向き）",
+      "columnGap": "列の間隔",
+      "sidePadding": "左右の余白",
+      "tabletPortrait": "タブレット（縦向き）"
+    },
+    "title": "設定"
+  },
+  "showMore": "{count} 件もっと見る",
+  "storageManager": {
+    "actions": {
+      "clearAll": "すべて消去",
+      "copy": "コピー",
+      "delete": "削除",
+      "edit": "編集",
+      "export": "エクスポート",
+      "importClipboard": "クリップボードからインポート",
+      "importFile": "ファイルからインポート"
+    },
+    "bytesSuffix": "バイト",
+    "confirm": {
+      "clearAll": "すべてのキーを削除しますか？元に戻せません。",
+      "deleteKey": "キーを削除\n{key}?",
+      "title": "確認",
+      "wipeBeforeImport": "インポート前にすべてのキーを削除しますか？元に戻せません。"
+    },
+    "export": {
+      "failed": "エクスポート失敗: {error}",
+      "title": "エクスポート"
+    },
+    "import": {
+      "clipboardEmpty": "クリップボードは空です。",
+      "error": "インポートエラー: {error}",
+      "invalidJson": "無効なJSON: {error}",
+      "ok": "{count} 件のキーをインポートしました",
+      "title": "インポート",
+      "webHint": "Web版では「クリップボードからインポート」を使用してください。"
+    },
+    "meta": "{count} 件のキー · {size} KB",
+    "modal": {
+      "editTitle": "キーを編集",
+      "valuePlaceholder": "値 (文字列またはJSON)"
+    },
+    "noMatches": "一致なし",
+    "options": {
+      "overwrite": "既存を上書き",
+      "wipeBeforeImport": "インポート前に消去"
+    },
+    "searchPlaceholder": "キーまたは値で検索",
+    "title": "デバイスストレージ"
+  },
+  "tags": {
+    "collectionsTab": "コレクション",
+    "favs": "お気に入り",
+    "searchCollectionPlaceholder": "コレクションを検索…",
+    "artists": "アーティスト",
+    "categories": "カテゴリ",
+    "characters": "キャラクター",
+    "groups": "グループ",
+    "languages": "言語",
+    "parodies": "パロディ",
+    "tags": "タグ",
+    "all": "すべて",
+    "searchPlaceholder": "タグを検索…",
+    "selected": "選択済み",
+    "included": "含める",
+    "excluded": "除外",
+    "empty": "空"
+  },
+  "uikit": {
+    "title": "UIKit",
+    "openAsHome": "起動時にUIKitを開く",
+    "openAsHomeDesc": "再起動後、このオプションをオフにするまでアプリはこのページで開きます。",
+    "paletteTitle": "メイン色（パレットテスト）",
+    "buttonTitle": "ボタン",
+    "buttonPrimary": "プライマリ",
+    "buttonSecondary": "セカンダリ",
+    "buttonOutline": "アウトライン",
+    "buttonCompact": "コンパクト",
+    "buttonGhost": "ゴースト",
+    "buttonChip": "チップ",
+    "typographyTitle": "タイポグラフィ",
+    "typographySample": "いろはにほへと ちりぬるを わかよたれそ つねならむ。",
+    "loadingTitle": "読み込みと進捗",
+    "loadingWithText": "読み込み開始",
+    "loadingLabel": "読み込み中…",
+    "download": "ダウンロード",
+    "iconsTitle": "アイコン付きボタン",
+    "favorite": "お気に入り",
+    "settings": "設定",
+    "dateFilterSubmenu": "日付で絞り込み",
+    "back": "戻る",
+    "dateCustomRange": "日付を指定…",
+    "dateCustomPick": "開始と終了を選択",
+    "datePreset24h": "過去24時間",
+    "datePreset7d": "過去7日間",
+    "datePreset30d": "過去30日間",
+    "sliderTitle": "スライダー",
+    "sliderOpacity": "不透明度",
+    "sliderVolume": "音量",
+    "sliderReset": "リセット",
+    "keyInputModalTitle": "KeyInputModal",
+    "keyInputModalOnlyAndroid": "Android のみ",
+    "keyInputModalOpenButton": "キーボード上に入力を開く",
+    "toggleTitle": "トグル",
+    "toggleBasic": "基本",
+    "toggleEnableLabel": "機能を有効にする",
+    "toggleOn": "有効",
+    "toggleOff": "無効",
+    "placeholder": "共通UIコンポーネントをここで一覧・プレビューします。設定でバージョンを3回タップするとこの画面が開きます。"
+  },
+  "collections": {
+    "newTitle": "新しいコレクション",
+    "editTitle": "コレクションを編集",
+    "hint": "タグをタップすると「含める/除外」を切り替えます。×で削除。",
+    "namePlaceholder": "コレクション名",
+    "createFromSelected": "選択から作成",
+    "itemsCount": "{count} 件",
+    "filter": {
+      "all": "すべて",
+      "include": "含める",
+      "exclude": "除外"
+    },
+    "defaultName": "新しいコレクション",
+    "counters": {
+      "included": "✓ 含める: {count}",
+      "excluded": "− 除外: {count}"
+    },
+    "fromSelected": "「選択済み」から",
+    "untitled": "無題",
+    "list": {
+      "edit": "編集",
+      "delete": "削除"
+    }
+  },
+  "listSort": {
+    "totalCount": "合計 {count} 件",
+    "byAdded": "追加順",
+    "byYear": "年順",
+    "byAlpha": "アルファベット順",
+    "newToOld": "新しい→古い",
+    "oldToNew": "古い→新しい",
+    "az": "A→Z",
+    "za": "Z→A"
+  },
+  "favoritesOnline": {
+    "searchPlaceholder": "お気に入り内を検索…"
+  },
+  "empty": {
+    "search": "何も見つかりません"
+  },
+  "date": {
+    "title": {
+      "range": "日付範囲",
+      "monthYear": "月と年",
+      "single": "日付"
+    },
+    "weekShort": {
+      "sat": "土",
+      "mon": "月",
+      "wed": "水",
+      "thu": "木",
+      "tue": "火",
+      "sun": "日",
+      "fri": "金"
+    },
+    "label": {
+      "year": "年",
+      "select": "選択",
+      "month": "月"
+    },
+    "actions": {
+      "apply": "適用",
+      "done": "完了",
+      "reset": "リセット",
+      "cancel": "キャンセル"
+    },
+    "month": {
+      "10": "10月",
+      "5": "5月",
+      "3": "3月",
+      "7": "7月",
+      "1": "1月",
+      "6": "6月",
+      "9": "9月",
+      "12": "12月",
+      "4": "4月",
+      "11": "11月",
+      "2": "2月",
+      "8": "8月"
+    }
+  },
+  "whatsNewUpdate": "新しい内容を見る",
+  "NewUpdate": "アップデートがあります",
+  "characters": {
+    "error": {
+      "download": "ダウンロードエラー",
+      "save": "保存エラー",
+      "delete": "削除エラー"
+    },
+    "searchPlaceholder": "キャラクター検索...",
+    "backToCollections": "コレクションに戻る",
+    "filter": {
+      "allUsers": "すべてのユーザー"
+    },
+    "empty": "まだ何もありません",
+    "selectAuthorTitle": "作者を選択",
+    "cardsCount": "{count}枚のカード",
+    "charactersCount": "{count}人のキャラクター",
+    "validation": {
+      "nameRequired": "キャラクター名を空にすることはできません"
+    },
+    "collection": {
+      "untitled": "コレクションなし"
+    },
+    "cardActions": {
+      "title": "このカードで何をしますか？",
+      "searchByCharacter": "このキャラクターで検索",
+      "cancel": "キャンセル",
+      "openBook": "本を開く"
+    }
+  },
+  "charSelect": {
+    "summaryParody": "パロディ",
+    "labelCharacter": "キャラクター（必須）",
+    "summaryTitle": "今何を投稿していますか",
+    "save": "保存",
+    "summaryHint": "保存前にすべてを確認してください。",
+    "parodyNotSpecified": "# src:",
+    "labelParody": "パロディ（任意）",
+    "warningText": "あなたはグローバルキャラクターカードを作成しています。誤ったカードは権限停止につながる可能性があります。",
+    "parodyPlaceholder": "例：「ワンピース」「原神」など",
+    "warningTitle": "カードをよく確認してください",
+    "notSelected": "# src:",
+    "cancel": "キャンセル",
+    "summaryCharacter": "キャラクター",
+    "profileNoname": "ニックネームなし",
+    "title": "キャラクターとパロディの選択",
+    "placeholderCharacter": "— キャラクターを選択 —",
+    "parodyCustom": "その他（自分で入力）",
+    "profileTitle": "あなたのプロフィール",
+    "parodyNone": "— パロディなし —",
+    "parodyOwnEmpty": "# src:",
+    "errorChooseCharacter": "キャラクターを選択してください"
+  },
+  "editCard": {
+    "cardAuthor": "カードの作者",
+    "warningText": "変更は重大です。ご注意ください。",
+    "editArea": "範囲を編集",
+    "cancel": "キャンセル",
+    "save": "保存",
+    "noName": "# src:",
+    "openBook": "本を開く",
+    "title": "キャラクターカードの編集",
+    "warningTitle": "注意",
+    "labelParody": "パロディ",
+    "labelCharacter": "キャラクター",
+    "delete": "削除"
+  },
+  "crop": {
+    "cancel": "キャンセル",
+    "preview": "プレビュー",
+    "accept": "決定",
+    "title": "フレームを調整して頭部に合わせてください"
+  },
+  "downloaded": {
+    "noHaveADownloadBook": "ダウンロード済みの本はありません"
+  },
+  "booklist": {
+    "notFound": "何も見つかりませんでした ¯\\_(ツ)_/¯",
+    "notFoundShort": "空です"
+  },
+  "favorites": {
+    "import": {
+      "doneMessage": "インポート数: {count}",
+      "partialFail": "一部の項目をインポートできませんでした。",
+      "title": "インポート",
+      "noneSelected": "本が一つも選択されていません。",
+      "doneTitle": "完了",
+      "loadFail": "ローカルのお気に入りの読み込みに失敗しました。",
+      "modalTitle": "ローカルのお気に入りをインポート",
+      "button": "ローカルからインポート",
+      "importSelected": "{count} 件インポート",
+      "noLocal": "ローカルのお気に入りは見つかりませんでした。"
+    },
+    "autoImport": {
+      "sync": "同期中…",
+      "label": "自動インポート（バックグラウンド）",
+      "active": "自動インポートが有効です",
+      "waiting": "待機中"
+    },
+    "selectedCount": "選択: {count}",
+    "selectForDelete": "削除対象として選択",
+    "accessibility": {
+      "deselect": "選択を解除",
+      "select": "選択"
+    },
+    "deleteOnline": {
+      "title": "オンラインのお気に入りから削除",
+      "message": "選択数: {count}。よろしいですか？"
+    },
+    "deletedCount": "{count} 件削除しました",
+    "selected": "選択済み"
+  },
+  "recommendations": {
+    "actions": {
+      "openFavorites": "お気に入りを開く",
+      "openFilters": "フィルターを開く"
+    },
+    "emptyTitle": {
+      "default": "まだおすすめはありません",
+      "noFav": "まだおすすめの材料がありません"
+    },
+    "emptySubtitle": {
+      "default": "フィルターを変えるか、リストを更新してみてください。",
+      "noFav": "検索したり、お気に入りに追加したり、読んだり、タグに星を付けたりしてから、下に引いて更新してください。"
+    },
+    "howItWorks": "おすすめ設定",
+    "loading": "おすすめを作成中…",
+    "modal": {
+      "title": "おすすめ設定",
+      "dataSection": "使用データ",
+      "tagPopCalibration": "タグの人気度とあなたのシグナル",
+      "tagPopCalibrationHint": "α=スライダー/100。スコア=raw/pop^(1−α)。0=raw÷pop（ニッチが上がる）、100=生。popが違うと順位が変わる。",
+      "tagPopCalibrationLow": "ニッチ (0)",
+      "tagPopCalibrationHigh": "そのまま (100)",
+      "topPrefs": "検出された好み",
+      "queriesSection": "実行されたクエリ",
+      "algorithm": "スコアリングアルゴリズム",
+      "algorithmDesc": "各作品は、あなたの好みシグナルとの一致度でスコアリングされます。インタラクションしたタグ・アーティスト・元ネタが最も高いスコアになります。お気に入りや履歴にある作品は除外されます。優先言語は10%ボーナスを得ます。",
+      "algorithmColdDesc": "おすすめには少なくとも1つのシグナル（検索・お気に入り・読書履歴・お気に入りタグ）が必要です。しばらく使ってからこの画面を更新してください。",
+      "coldStartHint": "まだ学習するデータがありません。検索・お気に入り・読書・タグの星を付けたあと、下に引いて更新してください。",
+      "refreshNote": "おすすめは下に引いて更新するか、アプリを再起動したときのみ更新されます。",
+      "favs": "ローカルお気に入り",
+      "onlineFavs": "オンラインお気に入り",
+      "readHist": "読書履歴",
+      "tagFavs": "お気に入りタグ",
+      "searchHist": "検索履歴",
+      "tags": "タグ",
+      "artists": "アーティスト",
+      "parodies": "元ネタ",
+      "filtersSection": "有効なタグフィルター",
+      "filterInclude": "必須",
+      "filterExclude": "除外",
+      "pageSection": "ページ数の好み",
+      "pageAvg": "平均読了ページ数",
+      "pages": "ページ",
+      "pageRange": "好みの範囲",
+      "pageTendency": "傾向",
+      "pageLabel": {
+        "short": "短編",
+        "medium": "中編",
+        "long": "長編",
+        "mixed": "長さ混合"
+      },
+      "yearSection": "好みのアップロード年",
+      "books": "冊",
+      "generation": "更新世代"
+    }
+  },
+  "sync": {
+    "title": "データを同期",
+    "selectMode": "同じネットワーク内のデバイス間でデータを同期する方法を選択します。",
+    "createServer": "サーバーを作成",
+    "createServerDesc": "サーバーを起動し、他のデバイスの接続を待ちます",
+    "findServer": "サーバーを検索",
+    "findServerDesc": "ネットワーク内の利用可能なサーバーを検索",
+    "serverDescription": "サーバーが実行中です。他のデバイスが接続してデータを同期できます。",
+    "serverRunning": "サーバー実行中",
+    "serverAddress": "アドレス: {ip}:{port}",
+    "startingServer": "サーバーを起動中...",
+    "stopServer": "サーバーを停止",
+    "serverStarted": "サーバーが起動しました",
+    "serverInfo": "サーバーは {ip}:{port} で実行中です",
+    "serverNotAvailable": "サーバーが利用できません",
+    "mobileServerHint": "モバイルデバイスでは、「サーバーを検索」モードを使用し、別のデバイスで実行されているサーバーに接続してください。",
+    "clientDescription": "ネットワーク内のサーバーを検索中...",
+    "searching": "サーバーを検索中...",
+    "foundServers": "見つかったサーバー:",
+    "noServersFound": "サーバーが見つかりません",
+    "noServersMessage": "ネットワーク内に同期サーバーが見つかりませんでした。別のデバイスでサーバーが実行されていることを確認してください。",
+    "manualConnect": "または、サーバーURLを手動で入力:",
+    "connect": "接続",
+    "syncing": "データを同期中...",
+    "success": "成功",
+    "error": "エラー",
+    "synced": "{count} 項目を正常に同期しました！",
+    "failed": "同期に失敗しました: {error}",
+    "enterUrl": "サーバーURLを入力してください"
+  }
+}

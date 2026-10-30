@@ -1,0 +1,128 @@
+/**
+ * Иконки: старое приложение использует Feather (`@expo/vector-icons`), новое — lucide (наследник Feather).
+ * `name` — имя Feather как в старом коде, чтобы переносить разметку без перевода имён.
+ * Список — все иконки, которые встречаются в старом приложении.
+ */
+import {
+  AlertCircle, AlertTriangle, AlignJustify, AlignLeft, ArrowDown, ArrowDownCircle, ArrowLeft, ArrowUp, ArrowUpCircle,
+  AtSign, CheckCircle, Clipboard, Copy, Save, Film, Key, Mail, Send, MinusCircle, PenTool, PlusCircle, ArrowRight, CornerUpLeft, Maximize, Minimize,
+  ArrowUpRight, Book, BookOpen, Bookmark, Calendar, Camera, Check, CheckSquare, ChevronDown,
+  ChevronLeft, ChevronRight, ChevronUp, Clock, Cloud, Cpu, Database, Download, Edit2, Edit3, EyeOff,
+  FileText, Filter, Folder, Globe, Grid, Hash, Heart, Home, Image, Info, Layout, List, Loader, Lock,
+  LogIn, LogOut, Menu, MessageCircle, MessageSquare, Minus, Package, Pause, Plus, RefreshCcw,
+  RefreshCw, Repeat, RotateCcw, Search, Settings, Shield, Shuffle, Sliders, Smartphone, Square,
+  Star, Sun, Tag, Trash2, TrendingUp, Type, Upload, User, Users, X, XCircle,
+  type LucideIcon,
+} from "lucide-react";
+
+const ICONS = {
+  "alert-circle": AlertCircle,
+  "alert-triangle": AlertTriangle,
+  "align-justify": AlignJustify,
+  "align-left": AlignLeft,
+  "arrow-down": ArrowDown,
+  "arrow-down-circle": ArrowDownCircle,
+  "arrow-left": ArrowLeft,
+  "arrow-right": ArrowRight,
+  "arrow-up": ArrowUp,
+  "arrow-up-circle": ArrowUpCircle,
+  "arrow-up-right": ArrowUpRight,
+  "at-sign": AtSign,
+  book: Book,
+  "book-open": BookOpen,
+  bookmark: Bookmark,
+  calendar: Calendar,
+  camera: Camera,
+  check: Check,
+  "check-circle": CheckCircle,
+  "check-square": CheckSquare,
+  "corner-up-left": CornerUpLeft,
+  "chevron-down": ChevronDown,
+  "chevron-left": ChevronLeft,
+  "chevron-right": ChevronRight,
+  "chevron-up": ChevronUp,
+  clipboard: Clipboard,
+  clock: Clock,
+  cloud: Cloud,
+  copy: Copy,
+  cpu: Cpu,
+  database: Database,
+  download: Download,
+  "edit-2": Edit2,
+  "edit-3": Edit3,
+  "eye-off": EyeOff,
+  "file-text": FileText,
+  filter: Filter,
+  film: Film,
+  folder: Folder,
+  globe: Globe,
+  grid: Grid,
+  hash: Hash,
+  heart: Heart,
+  home: Home,
+  image: Image,
+  info: Info,
+  key: Key,
+  layout: Layout,
+  list: List,
+  loader: Loader,
+  lock: Lock,
+  mail: Mail,
+  "log-in": LogIn,
+  "log-out": LogOut,
+  maximize: Maximize,
+  menu: Menu,
+  "message-circle": MessageCircle,
+  "message-square": MessageSquare,
+  minimize: Minimize,
+  minus: Minus,
+  "minus-circle": MinusCircle,
+  package: Package,
+  pause: Pause,
+  "pen-tool": PenTool,
+  plus: Plus,
+  "plus-circle": PlusCircle,
+  "refresh-ccw": RefreshCcw,
+  "refresh-cw": RefreshCw,
+  repeat: Repeat,
+  "rotate-ccw": RotateCcw,
+  save: Save,
+  search: Search,
+  send: Send,
+  settings: Settings,
+  shield: Shield,
+  shuffle: Shuffle,
+  sliders: Sliders,
+  smartphone: Smartphone,
+  square: Square,
+  star: Star,
+  sun: Sun,
+  tag: Tag,
+  "trash-2": Trash2,
+  "trending-up": TrendingUp,
+  type: Type,
+  upload: Upload,
+  user: User,
+  users: Users,
+  x: X,
+  "x-circle": XCircle,
+} satisfies Record<string, LucideIcon>;
+
+export type IconName = keyof typeof ICONS;
+
+export function Icon({
+  name,
+  size = 20,
+  color = "currentColor",
+  strokeWidth = 2,
+  className,
+}: {
+  name: IconName;
+  size?: number;
+  color?: string;
+  strokeWidth?: number;
+  className?: string;
+}) {
+  const Cmp = ICONS[name];
+  return <Cmp size={size} color={color} strokeWidth={strokeWidth} className={className} aria-hidden="true" />;
+}

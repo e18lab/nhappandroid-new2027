@@ -1,0 +1,6 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base application theme. -->
+    <style name="Theme.nhappandroid_new2027" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:windowBackground">@color/app_background</item>
+    </style>
+</resources>
