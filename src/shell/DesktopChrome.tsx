@@ -18,6 +18,7 @@ import { ownProfileRoute, useMe } from "../lib/session";
 import { Icon } from "../ui";
 import { FilterButton } from "./AppHeader";
 import { CloudButton } from "./CloudButton";
+import { UpdateButton } from "./UpdateButton";
 
 
 export function DesktopTitleBar() {
@@ -79,6 +80,7 @@ export function DesktopTitleBar() {
       </button>
       <div className="dk-drag" data-tauri-drag-region />
       <div className="dk-actions">
+        <UpdateButton />
         {me && <CloudButton />}
         <button type="button" className="dk-avatar" aria-label={t("nav.profile")} onClick={() => navigate(own || "/me")}>
           {avatar ? <img src={avatar} alt="" /> : <Icon name="user" size={18} />}

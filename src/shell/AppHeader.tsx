@@ -10,6 +10,7 @@ import { useMe } from "../lib/session";
 import { Icon } from "../ui";
 import { CatalogFilterButton } from "./CatalogFilter";
 import { CloudButton } from "./CloudButton";
+import { UpdateButton } from "./UpdateButton";
 
 export function AppHeader({ title }: { title?: string }) {
   const { t } = useI18n();
@@ -24,6 +25,7 @@ export function AppHeader({ title }: { title?: string }) {
       </button>
       {title && <h1 className="ax-header-title">{title}</h1>}
       <div className="ax-header-actions">
+        {pathname === "/" && <UpdateButton />}
         {me && <CloudButton />}
         {pathname === "/" && (
           <button type="button" className="ax-icon-btn" aria-label={t("menu.tags")} onClick={() => navigate("/tags")}>

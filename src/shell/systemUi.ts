@@ -12,6 +12,8 @@ declare global {
       deviceName?(): string;
       shareText?(fileName: string, mime: string, text: string): boolean;
       clipboardText?(): string;
+      /** Установка скачанного APK обновления: "ok" | "permission" | "missing" | "error: …". */
+      installApk?(path: string): string;
     };
   }
 }

@@ -1,7 +1,7 @@
 {
   "name": "nhappandroid-new2027",
   "private": true,
-  "version": "1.4.0",
+  "version": "1.5.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,7 +14,8 @@
     "android:release": "node scripts/tauri-android.mjs build --apk",
     "ota:keygen": "node scripts/ota-keygen.mjs",
     "ota:pack": "vite build && node scripts/ota-pack.mjs",
-    "ota:serve": "node scripts/ota-serve.mjs"
+    "ota:serve": "node scripts/ota-serve.mjs",
+    "ota:pack:native": "vite build && node scripts/ota-pack.mjs --native"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

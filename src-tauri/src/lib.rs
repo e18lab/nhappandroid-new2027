@@ -22,6 +22,8 @@ pub fn run() {
         ota::ota_download,
         ota::ota_apply,
         ota::ota_reset,
+        ota::ota_native_download,
+        ota::ota_native_run,
         downloads::downloads_dir,
         downloads::list_downloads,
         downloads::read_download,
@@ -42,6 +44,7 @@ pub fn run() {
         ota::ota_download,
         ota::ota_apply,
         ota::ota_reset,
+        ota::ota_native_download,
     ]);
     // Интерфейс — вшитый или скачанный обновлением (ota.rs). Главное окно создаётся здесь, а не из
     // конфига: конфиговые окна открываются раньше, чем OtaAssets узнаёт папку скачанной версии.

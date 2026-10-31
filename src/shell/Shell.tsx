@@ -27,6 +27,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { UNSAFE_LocationContext, useLocation, useNavigate, useNavigationType, type Location, type NavigationType } from "react-router-dom";
 import { useI18n } from "../i18n/I18nContext";
+import { startAutoUpdate } from "../lib/ota";
 import { IS_DESKTOP } from "../lib/platform";
 import { ownProfileRoute, useMe } from "../lib/session";
 import { AppHeader } from "./AppHeader";
@@ -35,7 +36,7 @@ import { useAndroidBack } from "./androidBack";
 import { BottomNav, navIndex } from "./BottomNav";
 import { DesktopTitleBar } from "./DesktopChrome";
 import { DownloadBanner, DownloadNotifier } from "./DownloadBanner";
-import { useSwipeBack } from "./swipeBack";
+import { usePredictiveBack, useSwipeBack } from "./swipeBack";
 import { TopBar } from "./TopBar";
 
 /** Главные разделы и заголовки их шапки (у главной заголовка нет, у настроек нет самой шапки). */
@@ -122,6 +123,9 @@ export function Shell({ children }: { children: ReactNode }) {
 
   useAndroidBack(() => false);
 
+  // Обновления интерфейса по воздуху: проверка и фоновая загрузка при запуске (lib/ota.ts)
+  useEffect(() => startAutoUpdate(), []);
+
   // История адресов приложения — чтобы при свайпе показать, что под текущим экраном
   useLayoutEffect(() => {
     const h = history.current;
@@ -138,13 +142,16 @@ export function Shell({ children }: { children: ReactNode }) {
   const prev = history.current[history.current.length - 2];
   const canSwipe = layers.length === 1 && !!prev && rootTitle(top.location, own) === undefined && !inWindow(top.location);
 
-  useSwipeBack({
+  const swipe = {
     stack,
     enabled: canSwipe,
     onStart: () => prev && setUnder({ id: nextId.current++, location: prev, className: "is-under" }),
     onCommit: () => navigate(-1),
     onCancel: () => setUnder(null),
-  });
+  };
+  useSwipeBack(swipe);
+  // Системный жест «назад» Android — тот же нижний экран и тот же шаг назад
+  usePredictiveBack(swipe);
 
   useLayoutEffect(() => {
     if (top.location.key === location.key) return;

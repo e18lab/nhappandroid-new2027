@@ -9,6 +9,7 @@
  * Не срабатывает, если палец начал на ползунке или на полосе, которую можно прокрутить влево.
  */
 import { useEffect, useRef, type RefObject } from "react";
+import { setBackGesture } from "./androidBack";
 
 /** Сколько пикселей движения нужно, чтобы понять направление жеста. */
 const SLOP = 10;
@@ -152,4 +153,93 @@ export function useSwipeBack({
       root.removeEventListener("touchcancel", onTouchEnd);
     };
   }, [stack, enabled]);
+}
+
+/** Жест системного «назад»: уменьшение и сдвиг экрана от края, с которого тянут. */
+const PB_SCALE = 0.9;
+const PB_SHIFT = 32;
+
+/**
+ * Системный жест «назад» Android с прогрессом (predictive back, как в Telegram): тянешь от края —
+ * экран уменьшается, скругляется и чуть отъезжает от края, под ним проступает предыдущий; отпустил —
+ * экран уезжает вправо и происходит шаг назад, отменил — возвращается. Прогресс шлёт MainActivity.
+ */
+export function usePredictiveBack({
+  stack,
+  enabled,
+  onStart,
+  onCommit,
+  onCancel,
+}: {
+  stack: RefObject<HTMLDivElement | null>;
+  enabled: boolean;
+  onStart: () => void;
+  onCommit: () => void;
+  onCancel: () => void;
+}) {
+  const cb = useRef({ onStart, onCommit, onCancel, enabled });
+  cb.current = { onStart, onCommit, onCancel, enabled };
+
+  useEffect(() => {
+    let dir = 1;
+    let p = 0;
+    const top = () => stack.current?.querySelector<HTMLElement>(".ax-layer.is-top") ?? null;
+    const under = () => stack.current?.querySelector<HTMLElement>(".ax-layer.is-under") ?? null;
+    const ease = "cubic-bezier(0.2, 0.75, 0.25, 1)";
+
+    const paint = (progress: number, out: boolean, animate: boolean) => {
+      const t = top();
+      const u = under();
+      const w = stack.current?.clientWidth ?? 0;
+      const shrink = Math.min(1, progress * 3);
+      if (t) {
+        t.style.transition = animate ? `transform ${SETTLE_MS}ms ${ease}, border-radius ${SETTLE_MS}ms` : "none";
+        t.style.transform = out
+          ? `translateX(${w}px) scale(${PB_SCALE})`
+          : `translateX(${dir * PB_SHIFT * progress}px) scale(${1 - (1 - PB_SCALE) * progress})`;
+        t.style.borderRadius = `${RADIUS * (out ? 1 : shrink)}px`;
+      }
+      if (u) {
+        u.style.transition = animate ? `transform ${SETTLE_MS}ms ${ease}` : "none";
+        const q = out ? 1 : progress * 0.5;
+        u.style.transform = `translateX(${-UNDER_SHIFT * 100 * (1 - q)}%)`;
+        u.style.setProperty("--dim", String(UNDER_DIM * (1 - q)));
+      }
+    };
+    const reset = () => {
+      const t = top();
+      if (!t) return;
+      t.style.transition = "";
+      t.style.transform = "";
+      t.style.borderRadius = "";
+      t.classList.remove("is-dragging");
+    };
+
+    setBackGesture({
+      canStart: () => cb.current.enabled && !!top(),
+      start(edge) {
+        // С левого края экран отъезжает вправо, с правого — влево
+        dir = edge === "left" ? 1 : -1;
+        p = 0;
+        top()?.classList.add("is-dragging");
+        cb.current.onStart();
+      },
+      progress(next) {
+        p = next;
+        paint(p, false, false);
+      },
+      cancel() {
+        paint(0, false, true);
+        window.setTimeout(() => {
+          reset();
+          cb.current.onCancel();
+        }, SETTLE_MS);
+      },
+      commit() {
+        paint(1, true, true);
+        window.setTimeout(() => cb.current.onCommit(), SETTLE_MS);
+      },
+    });
+    return () => setBackGesture(null);
+  }, [stack]);
 }

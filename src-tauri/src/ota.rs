@@ -13,6 +13,10 @@
 //!
 //! Нативная часть (Rust, Kotlin, плагины) так не обновляется: у манифеста `nativeApi` — какая
 //! нативная часть нужна интерфейсу; если у приложения она старее (`NATIVE_API`), нужна полная установка.
+//! Её приложение тоже ставит само: в манифесте `native` — версия и sha256 APK / установщика Windows;
+//! `ota_native_download` качает файл своей системы в кэш и проверяет хеш, дальше Android открывает
+//! системную установку APK (мост `NHAppNative.installApk`), Windows — `ota_native_run`: установщик
+//! в тихом режиме с перезапуском приложения.
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -29,7 +33,7 @@ use tauri_plugin_http::reqwest;
 
 /// Версия нативной части для интерфейса: поднимать, когда меняются команды Rust, плагины или Kotlin,
 /// которыми пользуется интерфейс. `scripts/ota-pack.mjs` берёт число отсюда.
-pub const NATIVE_API: u32 = 1;
+pub const NATIVE_API: u32 = 2;
 
 /// Открытый ключ подписи манифеста (base64, 32 байта) — `npm run ota:keygen`.
 const PUBLIC_KEY: &str = include_str!("../ota-public.key");
@@ -45,6 +49,32 @@ struct Manifest {
     version: String,
     native_api: u32,
     files: BTreeMap<String, FileEntry>,
+    /// Полная сборка приложения (если выложена).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    native: Option<NativeRelease>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct NativeRelease {
+    version: String,
+    #[serde(default)]
+    android: Option<FileEntry>,
+    #[serde(default)]
+    windows: Option<FileEntry>,
+}
+
+impl NativeRelease {
+    /// Файл для этой системы.
+    fn for_this_os(&self) -> Option<&FileEntry> {
+        if cfg!(target_os = "android") {
+            self.android.as_ref()
+        } else if cfg!(target_os = "windows") {
+            self.windows.as_ref()
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -260,7 +290,23 @@ pub fn ota_status(app: AppHandle) -> OtaStatus {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct NativeCheck {
+    version: String,
+    size: u64,
+}
+
+/// Полная сборка новее установленной и есть файл для этой системы.
+fn native_update<R: Runtime>(app: &AppHandle<R>, m: &Manifest) -> Option<NativeCheck> {
+    let n = m.native.as_ref()?;
+    let file = n.for_this_os()?;
+    version_newer(&n.version, &app.package_info().version.to_string()).then(|| NativeCheck { version: n.version.clone(), size: file.size })
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OtaCheck {
+    /// Полное обновление приложения, если есть.
+    native: Option<NativeCheck>,
     version: String,
     native_api: u32,
     /// Новее того, что сейчас работает.
@@ -282,6 +328,7 @@ pub async fn ota_check(app: AppHandle, url: String) -> Result<OtaCheck, String> 
         }
     }
     Ok(OtaCheck {
+        native: native_update(&app, &m),
         newer: version_newer(&m.version, &ui_version(&app)),
         compatible: m.native_api <= NATIVE_API,
         version: m.version,
@@ -359,5 +406,79 @@ pub fn ota_reset() -> Result<(), String> {
     *active().write().unwrap() = None;
     let _ = fs::remove_dir_all(root_dir.join(CURRENT));
     let _ = fs::remove_dir_all(root_dir.join(STAGING));
+    Ok(())
+}
+
+// ─── Полное обновление ─────────────────────────────────────────────────────────
+
+fn native_file() -> &'static RwLock<Option<PathBuf>> {
+    static FILE: RwLock<Option<PathBuf>> = RwLock::new(None);
+    &FILE
+}
+
+/// Скачать APK / установщик своей системы в кэш (с проверкой sha256). Прогресс — `ota-native-progress`
+/// в байтах. Возвращает путь к файлу (Android отдаёт его системной установке).
+#[tauri::command]
+pub async fn ota_native_download(app: AppHandle, url: String) -> Result<String, String> {
+    let client = reqwest::Client::builder().build().map_err(|e| e.to_string())?;
+    let m = fetch_manifest(&client, &url).await?;
+    let n = m.native.as_ref().ok_or("no native release")?;
+    let entry = n.for_this_os().ok_or("no build for this system")?.clone();
+    let dir = app.path().app_cache_dir().map_err(|e| e.to_string())?.join("update");
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let name = if cfg!(target_os = "android") { format!("NHApp-{}.apk", n.version) } else { format!("NHApp-{}-setup.exe", n.version) };
+    let target = dir.join(name);
+
+    let ready = fs::read(&target).map(|b| sha256_hex(&b) == entry.sha256).unwrap_or(false);
+    if !ready {
+        // Старые скачанные сборки больше не нужны
+        if let Ok(it) = fs::read_dir(&dir) {
+            for f in it.flatten() {
+                let _ = fs::remove_file(f.path());
+            }
+        }
+        let file_url = join_url(&url, &format!("files/{}", entry.sha256));
+        let mut res = client.get(&file_url).send().await.map_err(|e| e.to_string())?;
+        if !res.status().is_success() {
+            return Err(format!("HTTP {} — {file_url}", res.status()));
+        }
+        let part = target.with_extension("part");
+        let mut out = fs::File::create(&part).map_err(|e| e.to_string())?;
+        let mut hasher = Sha256::new();
+        let mut done: u64 = 0;
+        let mut last_emit: u64 = 0;
+        while let Some(chunk) = res.chunk().await.map_err(|e| e.to_string())? {
+            use std::io::Write;
+            out.write_all(&chunk).map_err(|e| e.to_string())?;
+            hasher.update(&chunk);
+            done += chunk.len() as u64;
+            if done - last_emit > 256 * 1024 || done == entry.size {
+                last_emit = done;
+                let _ = app.emit("ota-native-progress", Progress { done: done as usize, total: entry.size as usize });
+            }
+        }
+        drop(out);
+        let hash: String = hasher.finalize().iter().map(|b| format!("{b:02x}")).collect();
+        if hash != entry.sha256 {
+            let _ = fs::remove_file(&part);
+            return Err("hash mismatch".into());
+        }
+        fs::rename(&part, &target).map_err(|e| e.to_string())?;
+    }
+    *native_file().write().unwrap() = Some(target.clone());
+    Ok(target.to_string_lossy().into_owned())
+}
+
+/// Windows: запустить скачанный установщик (`/P` — без вопросов, с полосой прогресса; `/R` — запустить
+/// приложение после установки) и закрыться, чтобы он мог заменить файлы.
+#[cfg(desktop)]
+#[tauri::command]
+pub fn ota_native_run(app: AppHandle) -> Result<(), String> {
+    let path = native_file().read().unwrap().clone().ok_or("nothing downloaded")?;
+    if !cfg!(target_os = "windows") {
+        return Err("unsupported".into());
+    }
+    std::process::Command::new(&path).args(["/P", "/R", "/UPDATE"]).spawn().map_err(|e| e.to_string())?;
+    app.exit(0);
     Ok(())
 }

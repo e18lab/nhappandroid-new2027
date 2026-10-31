@@ -11,7 +11,7 @@ const ROOT = "update/ota";
 const PORT = Number(process.env.PORT) || 8787;
 
 createServer((req, res) => {
-  const path = normalize(decodeURIComponent(new URL(req.url ?? "/", "http://x").pathname)).replace(/^([/\])+/, "");
+  const path = normalize(decodeURIComponent(new URL(req.url ?? "/", "http://x").pathname)).replace(/^[\\/]+/, "");
   const file = join(ROOT, path);
   if (path.includes("..") || !existsSync(file) || !statSync(file).isFile()) {
     res.writeHead(404).end();

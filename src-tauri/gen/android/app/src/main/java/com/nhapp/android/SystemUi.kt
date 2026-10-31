@@ -5,6 +5,7 @@ import android.app.Activity
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.webkit.JavascriptInterface
@@ -21,6 +22,7 @@ import androidx.core.view.WindowInsetsControllerCompat
  *
  * Плюс данные устройства для облачной синхронизации (`utils/deviceId.ts` старого приложения),
  * «Поделиться» файлом (`expo-sharing`) и чтение буфера обмена (`expo-clipboard`) для менеджера хранилища.
+ * И установка скачанного полного обновления (`installApk`, см. src-tauri/src/ota.rs).
  */
 class SystemUi(private val activity: Activity) {
   @JavascriptInterface
@@ -72,4 +74,34 @@ class SystemUi(private val activity: Activity) {
     if (clip.itemCount == 0) return ""
     return clip.getItemAt(0).coerceToText(activity)?.toString() ?: ""
   }
+
+  /**
+   * Системная установка APK, скачанного обновлятором в кэш приложения. Без разрешения «установка
+   * из этого источника» сначала открывает его настройку и возвращает "permission" — после разрешения
+   * нажать «Обновить» ещё раз. "ok" — окно установки открыто.
+   */
+  @JavascriptInterface
+  fun installApk(path: String): String =
+    try {
+      val file = File(path)
+      if (!file.exists() || !file.canonicalPath.startsWith(activity.cacheDir.canonicalPath)) {
+        "missing"
+      } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !activity.packageManager.canRequestPackageInstalls()) {
+        activity.startActivity(
+          Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${activity.packageName}"))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
+        "permission"
+      } else {
+        val uri = FileProvider.getUriForFile(activity, "${activity.packageName}.fileprovider", file)
+        activity.startActivity(
+          Intent(Intent.ACTION_VIEW)
+            .setDataAndType(uri, "application/vnd.android.package-archive")
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
+        "ok"
+      }
+    } catch (e: Exception) {
+      "error: ${e.message}"
+    }
 }
