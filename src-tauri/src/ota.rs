@@ -4,9 +4,10 @@
 //! `<данные приложения>/ota/current/`: если там лежит проверенная версия новее вшитой, страница
 //! грузится оттуда (`OtaAssets`), чего нет на диске — из вшитых.
 //!
-//! Сервер обновлений — любая статическая раздача (пока — свой компьютер, `npm run ota:serve`; потом
-//! GitHub Releases): `manifest.json` (версия, `nativeApi`, sha256 и размер каждого файла), `manifest.sig`
-//! (подпись ed25519 манифеста, ключ — `ota-public.key`) и `files/<sha256>` — сами файлы.
+//! Сервер обновлений — любая статическая раздача без вложенных папок (по умолчанию — последний релиз
+//! GitHub, `npm run ota:release`; для проверки — свой компьютер, `npm run ota:serve`): `manifest.json`
+//! (версия, `nativeApi`, sha256 и размер каждого файла), `manifest.sig` (подпись ed25519 манифеста,
+//! ключ — `ota-public.key`) и сами файлы рядом: `<sha256>` или, если в манифесте задано, `name`.
 //! Скачиваются только файлы, которых у приложения нет (сверка по sha256), — правка интерфейса весит
 //! килобайты. Всё складывается в `ota/staging/`, уже скачанное повторно не качается; применение —
 //! перестановка папки и перезагрузка страницы (или следующий запуск).
@@ -81,6 +82,15 @@ impl NativeRelease {
 struct FileEntry {
     sha256: String,
     size: u64,
+    /// Имя файла на сервере (APK, установщик); без него — sha256.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    name: Option<String>,
+}
+
+impl FileEntry {
+    fn url(&self, base: &str) -> String {
+        join_url(base, self.name.as_deref().unwrap_or(&self.sha256))
+    }
 }
 
 fn root() -> &'static OnceLock<PathBuf> {
@@ -371,7 +381,7 @@ pub async fn ota_download(app: AppHandle, url: String) -> Result<String, String>
             let bytes = match served(&app, path).filter(|b| sha256_hex(b) == f.sha256) {
                 Some(b) => b,
                 None => {
-                    let b = get_bytes(&client, &join_url(&url, &format!("files/{}", f.sha256))).await?;
+                    let b = get_bytes(&client, &f.url(&url)).await?;
                     if sha256_hex(&b) != f.sha256 {
                         return Err(format!("hash mismatch: {path}"));
                     }
@@ -437,7 +447,7 @@ pub async fn ota_native_download(app: AppHandle, url: String) -> Result<String, 
                 let _ = fs::remove_file(f.path());
             }
         }
-        let file_url = join_url(&url, &format!("files/{}", entry.sha256));
+        let file_url = entry.url(&url);
         let mut res = client.get(&file_url).send().await.map_err(|e| e.to_string())?;
         if !res.status().is_success() {
             return Err(format!("HTTP {} — {file_url}", res.status()));

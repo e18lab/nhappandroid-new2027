@@ -66,6 +66,7 @@ export function resolveUrl(path: string): string {
 export function storeTokens(accessToken: string, refreshToken: string): void {
   setItem(STORAGE_KEY_ACCESS, accessToken);
   setItem(STORAGE_KEY_REFRESH, refreshToken);
+  devPushTokens(accessToken, refreshToken);
 }
 
 export function loadAccessToken(): string | null {
@@ -79,6 +80,7 @@ export function loadRefreshToken(): string | null {
 export function clearTokens(): void {
   removeItem(STORAGE_KEY_ACCESS);
   removeItem(STORAGE_KEY_REFRESH);
+  devPushTokens(null, null);
 }
 
 export function hasSession(): boolean {
@@ -96,6 +98,8 @@ export interface RequestOptions {
   headers?: Record<string, string>;
   /** Не обновлять токены на 401. */
   skipRefresh?: boolean;
+  /** На 429 не повторять, а сразу отдать ошибку (очередь сама решает, когда повторить). */
+  noRetry?: boolean;
 }
 
 /** Тело запроса: объект уходит как JSON, FormData — как multipart. */
@@ -181,7 +185,7 @@ async function request<T>(method: string, path: string, opts: RequestOptions = {
     try {
       return await requestOnce<T>(method, path, opts, body);
     } catch (e) {
-      if (!(e instanceof ApiError) || e.status !== 429 || attempt >= RATE_LIMIT_RETRIES) throw e;
+      if (!(e instanceof ApiError) || e.status !== 429 || opts.noRetry || attempt >= RATE_LIMIT_RETRIES) throw e;
       const wait = e.retryAfterMs ?? 1000 * 2 ** attempt;
       await new Promise((r) => setTimeout(r, wait));
     }
@@ -204,6 +208,8 @@ async function tryRefreshTokens(): Promise<boolean> {
       storeTokens(result.access_token, result.refresh_token);
       return true;
     } catch {
+      // В разработке токен мог обновить `tauri dev` или браузер рядом — сначала берём их свежие
+      if (await devPullTokens()) return true;
       clearTokens();
       return false;
     } finally {
@@ -248,4 +254,46 @@ export function buildQuery(params: Record<string, unknown>): string {
   const entries = Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== "");
   if (!entries.length) return "";
   return "?" + entries.map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`).join("&");
+}
+
+// ─── Общий вход в разработке ──────────────────────────────────────────────────
+// `tauri dev` и браузер с мобильной версией хранят токены каждый в своём localStorage. Дев-сервер Vite держит
+// в памяти последнюю пару (`/__dev/auth`, см. vite.config.ts): кто вошёл или обновил токены — отправляет туда,
+// при запуске каждый забирает. В сборке этого кода нет.
+
+const DEV_AUTH_URL = "/__dev/auth";
+
+function devPushTokens(access: string | null, refresh: string | null): void {
+  if (!import.meta.env.DEV) return;
+  void fetch(DEV_AUTH_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ access, refresh }) }).catch(() => {});
+}
+
+/**
+ * Свести токены с дев-сервером: там другие — взять их (true), там пусто (сервер перезапущен) — отдать свои.
+ * Вне разработки сразу false.
+ */
+export async function devPullTokens(): Promise<boolean> {
+  if (!import.meta.env.DEV) return false;
+  try {
+    const res = await fetch(DEV_AUTH_URL);
+    if (!res.ok) return false;
+    const shared = (await res.json()) as { access?: string | null; refresh?: string | null; set?: boolean };
+    const access = loadAccessToken();
+    const refresh = loadRefreshToken();
+    if (!shared.set) {
+      if (access && refresh) devPushTokens(access, refresh);
+      return false;
+    }
+    if (shared.access === access && shared.refresh === refresh) return false;
+    if (shared.access && shared.refresh) {
+      setItem(STORAGE_KEY_ACCESS, shared.access);
+      setItem(STORAGE_KEY_REFRESH, shared.refresh);
+    } else {
+      removeItem(STORAGE_KEY_ACCESS);
+      removeItem(STORAGE_KEY_REFRESH);
+    }
+    return !!shared.access;
+  } catch {
+    return false;
+  }
 }

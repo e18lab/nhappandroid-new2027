@@ -1,6 +1,7 @@
 /**
  * Обновления интерфейса по воздуху — обёртка над командами `src-tauri/src/ota.rs`.
- * Сервер обновлений задаётся в настройках (пока — свой компьютер: `npm run ota:pack` + `npm run ota:serve`).
+ * Сервер обновлений — последний релиз GitHub (`npm run ota:pack` + `npm run ota:release`); в настройках
+ * можно задать свой (например компьютер в той же сети: `npm run ota:serve`).
  * При запуске, если включено «Скачивать сами», приложение проверяет сервер и в фоне качает новую версию;
  * применяется она кнопкой в Настройки → Обновления (страница перезагружается) или при следующем запуске.
  *
@@ -14,6 +15,8 @@ import { getItem, setItem } from "./storage";
 
 export const OTA_URL_KEY = "ota.url";
 export const OTA_AUTO_KEY = "ota.auto";
+/** Последний релиз открытого репозитория. */
+export const OTA_DEFAULT_URL = "https://github.com/e18lab/nhappandroid-new2027/releases/latest/download";
 
 export interface OtaStatus {
   nativeVersion: string;
@@ -76,9 +79,9 @@ export function useOta(): OtaState {
 
 export const otaAvailable = inTauri;
 
-/** Адрес из настроек, иначе из сборки (`VITE_OTA_URL`, например в `.env.local`). */
+/** Адрес из настроек, иначе из сборки (`VITE_OTA_URL`, например в `.env.local`), иначе релизы GitHub. */
 export function getOtaUrl(): string {
-  return getItem(OTA_URL_KEY) || import.meta.env.VITE_OTA_URL || "";
+  return getItem(OTA_URL_KEY) || import.meta.env.VITE_OTA_URL || OTA_DEFAULT_URL;
 }
 
 export function setOtaUrl(url: string) {

@@ -9,7 +9,7 @@
 import { useSyncExternalStore } from "react";
 import { getMe } from "../api/account";
 import { logout } from "../api/auth";
-import { ApiError, hasSession } from "../api/client";
+import { ApiError, devPullTokens, hasSession } from "../api/client";
 import type { Me } from "../api/types";
 import { syncUser, touchOnline } from "../api/nappi";
 import { clearLibraryAfterLogout, startCloudSync, stopCloudSync } from "./cloudSync";
@@ -53,7 +53,8 @@ export function useMe(): Me | null {
       listeners.add(cb);
       if (!started) {
         started = true;
-        void refreshMe();
+        // В разработке сперва забираем вход у соседа (`tauri dev` ↔ браузер), в сборке — сразу профиль
+        void devPullTokens().finally(() => void refreshMe());
       }
       return () => listeners.delete(cb);
     },

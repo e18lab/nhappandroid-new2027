@@ -2,7 +2,7 @@
  * Нижняя панель — как FloatingTabBar в Anixart: плавающая «таблетка» с главными разделами
  * (Главная, Персонажи, Настройки) и профилем — аватаром справа. Поиск — в шапке.
  * У выбранного раздела подложка проявляется и подпись раскрывается анимацией, у остальных — только иконка.
- * «Профиль» после входа открывает свою страницу профиля, без входа — экран гостя со входом (`/me`).
+ * «Профиль» после входа открывает свою страницу профиля, без входа — сразу окно входа.
  * Под панелью — затемнение фона, чтобы список не спорил с ней.
  */
 import { useLocation, useNavigate } from "react-router-dom";
@@ -11,6 +11,7 @@ import { LIBRARY_ROUTES } from "../components/LibraryList";
 import { useI18n } from "../i18n/I18nContext";
 import { ownProfileRoute, useMe } from "../lib/session";
 import { Icon, type IconName } from "../ui";
+import { openLogin } from "./LoginModal";
 
 interface NavItem {
   key: string;
@@ -69,7 +70,7 @@ export function BottomNav() {
                 className={active ? "ax-nav-item is-active" : "ax-nav-item"}
                 aria-label={t(item.labelKey)}
                 aria-current={active ? "page" : undefined}
-                onClick={() => pathname !== route && navigate(route)}
+                onClick={() => (item.key === "profile" && !own ? openLogin() : pathname !== route && navigate(route))}
               >
                 <span className="ax-nav-icon">
                   {isAvatar ? <img className="ax-nav-avatar" src={avatar} alt="" /> : <Icon name={item.icon} size={24} />}

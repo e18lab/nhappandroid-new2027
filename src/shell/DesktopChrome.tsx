@@ -18,6 +18,7 @@ import { ownProfileRoute, useMe } from "../lib/session";
 import { Icon } from "../ui";
 import { FilterButton } from "./AppHeader";
 import { CloudButton } from "./CloudButton";
+import { openLogin } from "./LoginModal";
 import { UpdateButton } from "./UpdateButton";
 
 
@@ -82,7 +83,7 @@ export function DesktopTitleBar() {
       <div className="dk-actions">
         <UpdateButton />
         {me && <CloudButton />}
-        <button type="button" className="dk-avatar" aria-label={t("nav.profile")} onClick={() => navigate(own || "/me")}>
+        <button type="button" className="dk-avatar" aria-label={t("nav.profile")} onClick={() => (own ? navigate(own) : openLogin())}>
           {avatar ? <img src={avatar} alt="" /> : <Icon name="user" size={18} />}
         </button>
         <button type="button" className="dk-btn" aria-label={t("menu.settings")} onClick={() => navigate("/settings")}>

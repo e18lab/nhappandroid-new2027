@@ -28,6 +28,7 @@ import { applyFullscreen } from "../shell/systemUi";
 import { applyTheme, getBaseHue, saveHue, setBaseHue, themeColors } from "../theme";
 import { Icon, ListGroup, ListHint, ListRow, RadioRow, Spinner, StepperRow, SwitchRow, type IconName } from "../ui";
 import { ProfileEditScreen } from "./ProfileEditScreen";
+import { ServerSettings } from "./ServerSettings";
 import { UpdatesSettings } from "./UpdatesSettings";
 
 const DISCORD_URL = "https://discord.gg/VnxH7yfPqf";
@@ -39,6 +40,7 @@ const SECTIONS: { key: string; icon: IconName; color: string; subKey: string }[]
   { key: "cards", icon: "grid", color: "#f0973b", subKey: "settings.hub.cardsSub" },
   { key: "storage", icon: "database", color: "#9a6ae0", subKey: "settings.hub.storageSub" },
   { key: "updates", icon: "download", color: "#3fa7e0", subKey: "settings.hub.updatesSub" },
+  { key: "server", icon: "cloud", color: "#2fb39a", subKey: "settings.hub.serverSub" },
 ];
 
 /** Цвет образца палитры — hslToHex(h, 78%, 50%) из HuePaletteSelector. */
@@ -184,6 +186,7 @@ export function SettingsSectionScreen() {
       {section === "display" && <DisplaySettings />}
       {(section === "cards" || section === "grid") && <CardsSettings />}
       {section === "updates" && <UpdatesSettings />}
+      {section === "server" && <ServerSettings />}
       {section === "storage" && (
         <>
           <SavePathRow />

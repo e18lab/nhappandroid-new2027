@@ -31,6 +31,7 @@ import { startAutoUpdate } from "../lib/ota";
 import { IS_DESKTOP } from "../lib/platform";
 import { ownProfileRoute, useMe } from "../lib/session";
 import { AppHeader } from "./AppHeader";
+import { LoginHost, openLogin } from "./LoginModal";
 import { Icon, OverlayScrollbar } from "../ui";
 import { useAndroidBack } from "./androidBack";
 import { BottomNav, navIndex } from "./BottomNav";
@@ -74,9 +75,9 @@ function useWide(): boolean {
   return wide;
 }
 
-/** Страницы, которые на широком экране открываются окном: настройки, профили, экран гостя. */
+/** Страницы, которые на широком экране открываются окном: настройки, профили. */
 function isWindowRoute(pathname: string): boolean {
-  return /^\/(settings|profile|me)(\/|$)/.test(pathname);
+  return /^\/(settings|profile)(\/|$)/.test(pathname);
 }
 
 type Motion = "open" | "close" | "tab-right" | "tab-left";
@@ -203,9 +204,10 @@ export function Shell({ children }: { children: ReactNode }) {
   };
 
   // Стабильные обработчики для слоёв: слой перерисовывается, только если поменялись его адрес или класс
-  const latest = useRef({ navigate, closeWindow });
-  latest.current = { navigate, closeWindow };
-  const openMenu = useCallback(() => latest.current.navigate("/me"), []);
+  const latest = useRef({ navigate, closeWindow, own });
+  latest.current = { navigate, closeWindow, own };
+  // Профиль: после входа — своя страница, гостю — сразу окно входа
+  const openMenu = useCallback(() => (latest.current.own ? latest.current.navigate(latest.current.own) : openLogin()), []);
   const closeWindowStable = useCallback(() => latest.current.closeWindow(), []);
 
   const renderLayer = (layer: Layer, className: string, windowed = false) => (
@@ -255,6 +257,7 @@ export function Shell({ children }: { children: ReactNode }) {
         </div>
         {nav && <BottomNav />}
         <OverlayScrollbar />
+        <LoginHost />
       </div>
     </div>
   );

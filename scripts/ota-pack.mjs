@@ -1,12 +1,12 @@
 /**
  * Пакет обновления интерфейса из `dist/` (сначала `vite build`): `update/ota/manifest.json` — версия
  * (package.json), `nativeApi` (из src-tauri/src/ota.rs), sha256 и размер каждого файла; `manifest.sig` —
- * подпись ed25519 (`npm run ota:keygen`); `files/<sha256>` — файлы. Старые файлы не удаляются: имя — хеш,
- * у разных версий общие файлы одни и те же. Папку `update/ota` раздаёт `npm run ota:serve`
- * (или её содержимое выкладывается в релиз).
+ * подпись ed25519 (`npm run ota:keygen`); `<sha256>` — файлы, рядом с манифестом (в релизе GitHub папок
+ * нет). Старые файлы не удаляются: имя — хеш, у разных версий общие файлы одни и те же. Папку
+ * `update/ota` раздаёт `npm run ota:serve`, в релиз GitHub выкладывает `npm run ota:release`.
  *
- * `--native` — добавить полную сборку приложения (версия из tauri.conf.json): последний APK из
- * `src-tauri/gen/android/.../apk` и установщик NSIS этой версии. Без флага полная сборка из прошлого
+ * `--native` — добавить полную сборку приложения (той же версии — tauri.conf.json берёт её из package.json): последний APK из
+ * `src-tauri/gen/android/.../apk` и установщик NSIS этой версии — под понятными именами (`name` в манифесте). Без флага полная сборка из прошлого
  * манифеста сохраняется — выпуск одного интерфейса её не убирает.
  */
 import { createHash, createPrivateKey, sign } from "node:crypto";
@@ -29,42 +29,41 @@ if (!nativeApi) throw new Error("не найден NATIVE_API в src-tauri/src/o
 
 const walk = (dir) => readdirSync(dir).flatMap((n) => (statSync(join(dir, n)).isDirectory() ? walk(join(dir, n)) : [join(dir, n)]));
 
-mkdirSync(join(OUT, "files"), { recursive: true });
+mkdirSync(OUT, { recursive: true });
 const files = {};
 let added = 0;
 for (const path of walk(DIST).sort()) {
   const bytes = readFileSync(path);
   const sha256 = createHash("sha256").update(bytes).digest("hex");
   files[relative(DIST, path).split(sep).join("/")] = { sha256, size: bytes.length };
-  const blob = join(OUT, "files", sha256);
+  const blob = join(OUT, sha256);
   if (!existsSync(blob)) {
     copyFileSync(path, blob);
     added++;
   }
 }
 
-/** Файл в хранилище по хешу; в манифест — sha256 и размер. */
-function store(path) {
+/** Сборку приложения — в хранилище под именем `name`; в манифест — sha256, размер и имя. */
+function store(path, name) {
   const bytes = readFileSync(path);
   const sha256 = createHash("sha256").update(bytes).digest("hex");
-  const blob = join(OUT, "files", sha256);
-  if (!existsSync(blob)) copyFileSync(path, blob);
-  return { sha256, size: bytes.length };
+  copyFileSync(path, join(OUT, name));
+  return { sha256, size: bytes.length, name };
 }
 
 let native;
 if (process.argv.includes("--native")) {
-  const nativeVersion = JSON.parse(readFileSync("src-tauri/tauri.conf.json", "utf8")).version;
+  const nativeVersion = version;
   native = { version: nativeVersion };
   const apks = existsSync(APK_DIR) ? walk(APK_DIR).filter((f) => f.endsWith(".apk")) : [];
   const apk = apks.sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs)[0];
   if (apk) {
-    native.android = store(apk);
+    native.android = store(apk, `NHApp_${nativeVersion}.apk`);
     console.log(`Android: ${apk}`);
   }
   const setup = join(NSIS_DIR, `NHApp_${nativeVersion}_x64-setup.exe`);
   if (existsSync(setup)) {
-    native.windows = store(setup);
+    native.windows = store(setup, `NHApp_${nativeVersion}_x64-setup.exe`);
     console.log(`Windows: ${setup}`);
   }
   if (!native.android && !native.windows) throw new Error("нет ни APK, ни установщика — сначала соберите приложение");

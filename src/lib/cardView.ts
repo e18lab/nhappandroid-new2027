@@ -29,7 +29,7 @@ export interface CardView {
 
 export const CARD_VIEWS: CardViewKind[] = ["list", "compact", "grid", "classic"];
 
-const DEFAULT: CardView = { view: "list", show: { tags: true, meta: true, newBadge: true, date: false } };
+const DEFAULT: CardView = { view: "classic", show: { tags: true, meta: true, newBadge: true, date: false } };
 
 let cached: { raw: string; value: CardView } | null = null;
 

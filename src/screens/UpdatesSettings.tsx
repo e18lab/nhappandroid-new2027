@@ -12,6 +12,7 @@ import {
   getOtaAuto,
   installFullUpdate,
   getOtaUrl,
+  OTA_DEFAULT_URL,
   otaAvailable,
   refreshStatus,
   resetUpdate,
@@ -113,7 +114,7 @@ export function UpdatesSettings() {
               {t("settings.updates.download")}
             </button>
           ) : (
-            <button type="button" className="ax-btn ax-btn-ghost" disabled={busy || !url} onClick={() => void checkUpdate()}>
+            <button type="button" className="ax-btn ax-btn-ghost" disabled={busy} onClick={() => void checkUpdate()}>
               <Icon name="search" size={18} />
               {t("settings.updates.check")}
             </button>
@@ -124,7 +125,7 @@ export function UpdatesSettings() {
       <ListGroup title={t("settings.updates.server")}>
         <ListField
           value={url}
-          placeholder="http://192.168.1.10:8787"
+          placeholder={OTA_DEFAULT_URL}
           onChange={(v) => {
             setUrl(v);
             setOtaUrl(v);
