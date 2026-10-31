@@ -197,7 +197,7 @@ async function request<T>(method: string, path: string, opts: RequestOptions = {
 let refreshPromise: Promise<boolean> | null = null;
 
 /** Параллельные 401 делят одно обновление. При неудаче сессия сбрасывается. */
-async function tryRefreshTokens(): Promise<boolean> {
+export async function tryRefreshTokens(): Promise<boolean> {
   if (refreshPromise) return refreshPromise;
   refreshPromise = (async () => {
     try {

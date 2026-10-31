@@ -1,6 +1,7 @@
 /**
  * Главная — редизайн в духе Anixart. Сверху вкладки, листаются свайпом вбок:
  * «Новое» (каталог с бесконечной подгрузкой; сортировка — в фильтрах у поиска),
+ * на ПК — «Сообщество» (страница выбирается в выпадающем меню вкладки; на телефоне это раздел нижней панели),
  * «Рекомендации»,
  * дальше разделы библиотеки: загруженное, закладки, онлайн-избранное (после входа), история, теги.
  * Последняя открытая вкладка запоминается (`ui.home.tab`).
@@ -15,6 +16,7 @@ import { IS_DESKTOP } from "../lib/platform";
 import { useMe } from "../lib/session";
 import { getItem, setItem } from "../lib/storage";
 import { PageTabs, Pager, usePager } from "../ui";
+import { CommunityPage, useCommunityMenu } from "./CommunityScreen";
 import { FavoritesOnlineScreen } from "./FavoritesOnlineScreen";
 import { DownloadedScreen, NoteScreen, SavedScreen } from "./LibraryScreens";
 import { TagsScreen } from "./TagsScreen";
@@ -23,8 +25,8 @@ const TAB_KEY = "ui.home.tab";
 
 const TABS: { key: string; labelKey: string; needsLogin?: boolean; desktopOnly?: boolean; render: () => ReactNode }[] = [
   { key: "latest", labelKey: "home.tabs.latest", render: () => <CatalogFeed /> },
-  // На телефоне персонажи — в нижней панели, на ПК её нет
-  { key: "characters", labelKey: "nav.characters", desktopOnly: true, render: () => <NoteScreen titleKey="menu.characters" textKey="notes.characters" /> },
+  // На телефоне сообщество — в нижней панели, на ПК её нет
+  { key: "community", labelKey: "nav.community", desktopOnly: true, render: () => <CommunityPage /> },
   { key: "recommendations", labelKey: "menu.recommendations", render: () => <NoteScreen titleKey="menu.recommendations" textKey="notes.recommendations" /> },
   { key: "downloaded", labelKey: "menu.downloaded", render: () => <DownloadedScreen /> },
   { key: "favorites", labelKey: "menu.favorites", render: () => <SavedScreen kind="favorites" /> },
@@ -47,13 +49,14 @@ function HomePager({ loggedIn }: { loggedIn: boolean }) {
   const tabs = TABS.filter((x) => (!x.needsLogin || loggedIn) && (!x.desktopOnly || IS_DESKTOP));
   const saved = tabs.findIndex((x) => x.key === (getItem(TAB_KEY) ?? "latest"));
   const pager = usePager(tabs.length, saved >= 0 ? saved : tabs.findIndex((x) => x.key === "latest"));
+  const communityMenu = useCommunityMenu();
 
   return (
     <div className="screen-fill ax-home">
       <div className="ax-home-tabs">
         <PageTabs
           pager={pager}
-          tabs={tabs.map((x) => ({ key: x.key, label: t(x.labelKey) }))}
+          tabs={tabs.map((x) => ({ key: x.key, label: t(x.labelKey), menu: x.key === "community" ? communityMenu : undefined }))}
         />
       </div>
       <Pager pager={pager} count={tabs.length} onIndexChange={(i) => setItem(TAB_KEY, tabs[i].key)} render={(i) => tabs[i].render()} />

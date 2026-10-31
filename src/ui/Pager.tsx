@@ -6,12 +6,31 @@
  * `PageTabs` — как FloatingTabsBar в Anixart: плашка по ширине вкладок; выделение-«пилюля» едет за пальцем
  * по доле прокрутки ленты, выбранная вкладка подкручивается в видимую часть полосы, края полосы гаснут
  * только с той стороны, где есть что прокрутить. Слева — необязательная кнопка (фильтры).
+ * У вкладки может быть меню (`menu`, на ПК): стрелка у подписи, по наведению или нажатию — панель с выбором
+ * страницы внутри вкладки, как выпадающие меню на сайтах.
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import { Icon, type IconName } from "./Icon";
+
+export interface TabMenuItem {
+  key: string;
+  label: string;
+  description?: string;
+  icon: IconName;
+}
+
+export interface TabMenu {
+  title: string;
+  items: TabMenuItem[];
+  value: string;
+  onSelect: (key: string) => void;
+}
 
 export interface PagerTab {
   key: string;
   label: string;
+  menu?: TabMenu;
 }
 
 /** Состояние ленты: какая страница выбрана и где сейчас прокрутка (дробный индекс). */
@@ -95,6 +114,18 @@ export function PageTabs({
   const buttons = useRef<(HTMLButtonElement | null)[]>([]);
   const [pill, setPill] = useState<{ left: number; width: number } | null>(null);
   const [fade, setFade] = useState({ start: false, end: false });
+  const [menuAt, setMenuAt] = useState<number | null>(null);
+  const closeTimer = useRef<number | undefined>(undefined);
+
+  const openMenu = (i: number) => {
+    window.clearTimeout(closeTimer.current);
+    setMenuAt(i);
+  };
+  const closeMenuSoon = () => {
+    window.clearTimeout(closeTimer.current);
+    closeTimer.current = window.setTimeout(() => setMenuAt(null), 180);
+  };
+  useEffect(() => () => window.clearTimeout(closeTimer.current), []);
 
   const updateFade = useCallback(() => {
     const el = strip.current;
@@ -151,13 +182,117 @@ export function PageTabs({
             type="button"
             role="tab"
             aria-selected={i === pager.index}
-            className={Math.round(pager.position) === i ? "ax-tab is-active" : "ax-tab"}
-            onClick={() => pager.goTo(i)}
+            className={`${Math.round(pager.position) === i ? "ax-tab is-active" : "ax-tab"}${tab.menu ? " has-menu" : ""}${menuAt === i ? " is-open" : ""}`}
+            aria-haspopup={tab.menu ? "menu" : undefined}
+            aria-expanded={tab.menu ? menuAt === i : undefined}
+            onClick={() => {
+              pager.goTo(i);
+              if (tab.menu) setMenuAt((m) => (m === i ? null : i));
+            }}
+            onMouseEnter={tab.menu ? () => openMenu(i) : undefined}
+            onMouseLeave={tab.menu ? closeMenuSoon : undefined}
           >
             {tab.label}
+            {tab.menu && <Icon name="chevron-down" size={14} className="ax-tab-chevron" />}
           </button>
         ))}
       </div>
+      {menuAt != null && tabs[menuAt]?.menu && (
+        <TabMenuPanel
+          anchor={buttons.current[menuAt]}
+          menu={tabs[menuAt].menu!}
+          current={pager.index === menuAt}
+          onPick={() => pager.goTo(menuAt)}
+          onEnter={() => openMenu(menuAt)}
+          onLeave={closeMenuSoon}
+          onClose={() => setMenuAt(null)}
+        />
+      )}
     </div>
+  );
+}
+
+/** Панель меню вкладки — под вкладкой, поверх всего (полоса вкладок обрезает то, что за её краем). */
+function TabMenuPanel({
+  anchor,
+  menu,
+  current,
+  onPick,
+  onEnter,
+  onLeave,
+  onClose,
+}: {
+  anchor: HTMLElement | null;
+  menu: TabMenu;
+  /** Вкладка открыта — тогда выбранная страница подсвечивается. */
+  current: boolean;
+  /** Выбран пункт — открыть саму вкладку (меню можно открыть и с другой вкладки). */
+  onPick: () => void;
+  onEnter: () => void;
+  onLeave: () => void;
+  onClose: () => void;
+}) {
+  const panel = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+
+  useLayoutEffect(() => {
+    if (!anchor || !panel.current) return;
+    const a = anchor.getBoundingClientRect();
+    const w = panel.current.offsetWidth;
+    const left = Math.min(Math.max(8, a.left + a.width / 2 - w / 2), window.innerWidth - w - 8);
+    setPos({ left, top: a.bottom + 8 });
+  }, [anchor]);
+
+  useEffect(() => {
+    const onDown = (e: PointerEvent) => {
+      const target = e.target as Node;
+      if (!panel.current?.contains(target) && !anchor?.contains(target)) onClose();
+    };
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("pointerdown", onDown, true);
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("resize", onClose);
+    return () => {
+      window.removeEventListener("pointerdown", onDown, true);
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", onClose);
+    };
+  }, [anchor, onClose]);
+
+  return createPortal(
+    <div
+      ref={panel}
+      className="ax-tabmenu"
+      role="menu"
+      style={pos ? { left: pos.left, top: pos.top } : { visibility: "hidden" }}
+      onMouseEnter={onEnter}
+      onMouseLeave={onLeave}
+    >
+      <div className="ax-tabmenu-title">{menu.title}</div>
+      {menu.items.map((item) => {
+        const active = current && item.key === menu.value;
+        return (
+        <button
+          key={item.key}
+          type="button"
+          role="menuitemradio"
+          aria-checked={active}
+          className={active ? "ax-tabmenu-item is-active" : "ax-tabmenu-item"}
+          onClick={() => {
+            menu.onSelect(item.key);
+            onPick();
+            onClose();
+          }}
+        >
+          <Icon name={item.icon} size={20} />
+          <span className="ax-tabmenu-text">
+            <span className="ax-tabmenu-label">{item.label}</span>
+            {item.description && <span className="ax-tabmenu-desc">{item.description}</span>}
+          </span>
+        </button>
+        );
+      })}
+    </div>,
+    document.body,
   );
 }

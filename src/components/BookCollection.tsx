@@ -12,6 +12,7 @@ import { useI18n } from "../i18n/I18nContext";
 import { isBookBlacklisted, useBlacklistSets } from "../lib/blacklist";
 import { useEnrichedBooks } from "../lib/bookEnrich";
 import { useCardView, type CardShow } from "../lib/cardView";
+import { useBookTitle } from "../lib/titleTranslations";
 import { Icon } from "../ui";
 import { BookCard } from "./BookCard";
 import { BookGrid, useGridMetrics } from "./BookGrid";
@@ -56,10 +57,10 @@ const CAROUSEL_W: Record<string, number> = { grid: 140, classic: 150, list: 300,
 export function BookCarousel({ books, onPress }: { books: Book[]; onPress: (b: Book) => void }) {
   const { t } = useI18n();
   const { view, show } = useCardView();
-  const list = useEnrichedBooks(view !== "classic" ? books : NONE);
+  // Классические карточки здесь без BookGrid — догружаем теги сами, иначе вечное «Собирается информация»
+  const items = useEnrichedBooks(books);
   const row = useRef<HTMLDivElement>(null);
   const w = CAROUSEL_W[view];
-  const items = view === "classic" ? books : list;
   const scroll = (dir: number) => row.current?.scrollBy({ left: dir * (row.current.clientWidth - w), behavior: "smooth" });
 
   return (
@@ -109,6 +110,7 @@ export const PosterCard = memo(function PosterCard({ book, show, onPress, onRead
   const blacklist = useBlacklistSets();
   const hidden = useMemo(() => isBookBlacklisted(book, blacklist), [book, blacklist]);
   const facts = useBookFacts(book);
+  const title = useBookTitle(book);
   const sub = [show.meta && facts.pages ? t("book.pagesShort", { count: facts.pages }) : "", show.date ? facts.date : ""].filter(Boolean);
   const onCover = show.meta && (facts.lang || book.favorites);
 
@@ -137,7 +139,7 @@ export const PosterCard = memo(function PosterCard({ book, show, onPress, onRead
           <BookMenuButton book={book} onRead={onRead} />
         </span>
       </div>
-      <h3 className="ax-poster-title">{book.title.pretty || book.title.english || `#${book.id}`}</h3>
+      <h3 className="ax-poster-title">{title}</h3>
       {sub.length > 0 && <div className="ax-poster-sub">{sub.join(" • ")}</div>}
     </div>
   );

@@ -3,6 +3,7 @@
  * Выезжает снизу (260ms), уезжает (220ms) и только потом вызывает onClose — как в старом.
  * Шапка 52px: заголовок по центру, справа крестик и `headerRight`; под ней — подсказки с иконкой «i».
  * `sizing="wrap"` — высота по содержимому до `heightPercent` экрана, `"fixed"` — ровно `heightPercent`.
+ * `className` — на корень: экран может перестроить шторку под себя (например, окном по центру на ПК).
  */
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -23,6 +24,7 @@ export interface NhModalProps {
   backdropColor?: string;
   sizing?: "wrap" | "fixed";
   sheetStyle?: CSSProperties;
+  className?: string;
   children: ReactNode;
 }
 
@@ -37,6 +39,7 @@ export function NhModal({
   backdropColor = "rgba(0,0,0,0.45)",
   sizing = "wrap",
   sheetStyle,
+  className,
   children,
 }: NhModalProps) {
   const [mounted, setMounted] = useState(visible);
@@ -73,7 +76,7 @@ export function NhModal({
   const cap = `${Math.round(Math.min(1, Math.max(0.5, heightPercent)) * 100)}dvh`;
 
   return createPortal(
-    <div className={shown ? "ui-sheet-root is-shown" : "ui-sheet-root"}>
+    <div className={`ui-sheet-root${shown ? " is-shown" : ""}${className ? ` ${className}` : ""}`}>
       {dimBackground && (
         <div
           className="ui-sheet-dim"

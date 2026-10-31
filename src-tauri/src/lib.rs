@@ -3,6 +3,8 @@ mod captcha;
 mod downloads;
 mod ota;
 #[cfg(desktop)]
+mod save_file;
+#[cfg(desktop)]
 mod window_controls;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -10,13 +12,14 @@ pub fn run() {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_http::init())
-        // Выбор папки для загрузок на ПК (SavePathRow)
+        // Выбор папки для загрузок на ПК (SavePathRow) и «Сохранить как» для выгрузок (save_file.rs)
         .plugin(tauri_plugin_dialog::init());
     // На Android капча — нативный диалог (CaptchaDialog.kt), на ПК — отдельное окно
     #[cfg(desktop)]
     let builder = builder.invoke_handler(tauri::generate_handler![
         captcha::open_captcha,
         window_controls::window_control,
+        save_file::save_text_file,
         ota::ota_status,
         ota::ota_check,
         ota::ota_download,

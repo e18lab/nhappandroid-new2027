@@ -23,6 +23,7 @@ import { CARD_VIEWS, setCardView, useCardView, type CardViewKind } from "../lib/
 import { downloadsDir, inTauri } from "../lib/downloads";
 import { ownProfileRoute, useMe } from "../lib/session";
 import { KEYS, getItem, removeItem, setItem } from "../lib/storage";
+import { setLangPref, useLangPref } from "../lib/langPrefs";
 import { LoginModal } from "../shell/LoginModal";
 import { applyFullscreen } from "../shell/systemUi";
 import { applyTheme, getBaseHue, saveHue, setBaseHue, themeColors } from "../theme";
@@ -343,6 +344,8 @@ function englishName(code: string): string {
 /** Страница языка (вместо окна LanguageSelector старого): список с радиокнопками, выбор применяется сразу. */
 function LanguageSettings() {
   const { t, available, locale, setLocale } = useI18n();
+  const titles = useLangPref("titles");
+  const tags = useLangPref("tags");
   return (
     <>
       <ListGroup title={t("settings.languagePage.title")}>
@@ -361,6 +364,20 @@ function LanguageSettings() {
         })}
       </ListGroup>
       <ListHint>{t("settings.languagePage.note")}</ListHint>
+      <ListGroup title={t("settings.languagePage.content")}>
+        <SwitchRow
+          title={t("settings.languagePage.titles")}
+          description={t("settings.languagePage.titlesSub")}
+          value={titles}
+          onChange={(v) => setLangPref("titles", v)}
+        />
+        <SwitchRow
+          title={t("settings.languagePage.tags")}
+          description={t("settings.languagePage.tagsSub")}
+          value={tags}
+          onChange={(v) => setLangPref("tags", v)}
+        />
+      </ListGroup>
     </>
   );
 }

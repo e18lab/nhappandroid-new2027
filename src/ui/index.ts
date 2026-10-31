@@ -38,5 +38,5 @@ export type { TypographyVariant } from "./Typography";
 export { ViewToggle } from "./ViewToggle";
 export type { ViewToggleOption } from "./ViewToggle";
 export { PageTabs, Pager, usePager } from "./Pager";
-export type { PagerTab } from "./Pager";
+export type { PagerTab, TabMenu, TabMenuItem } from "./Pager";
 export { ListField, ListGroup, ListHint, ListRow, RadioRow, StepperRow, SwitchRow, TileIcon } from "./List";
