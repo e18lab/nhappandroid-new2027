@@ -55,11 +55,13 @@ export interface NappiBook {
   uploaded_at: string | null;
   tag_ids: number[] | null;
   tags: string[] | null;
+  /** Машинный перевод названия — только при запросе с `titleLocale`. */
+  title_translated?: string | null;
 }
 
 /** До 500 книг одним запросом (как `fetchBooksFromRecommendationLib` в старом); `missing` — каких на сервере нет. */
-export async function getBooksBatch(ids: number[]): Promise<{ books: NappiBook[]; missing: number[] }> {
-  const res = await request(`/api/recommendation-lib/books/batch?q=${ids.join(",")}`);
+export async function getBooksBatch(ids: number[], titleLocale?: string): Promise<{ books: NappiBook[]; missing: number[] }> {
+  const res = await request(`/api/recommendation-lib/books/batch?q=${ids.join(",")}${titleLocale ? `&title_locale=${titleLocale}` : ""}`);
   const data = (await res.json()) as { books?: NappiBook[]; missing?: number[] };
   return { books: data.books ?? [], missing: data.missing ?? [] };
 }
@@ -99,6 +101,50 @@ export interface FullPassInfo {
   };
   booksInLib: number;
   maxBookId: number;
+}
+
+export type TitleTrState = "disabled" | "idle" | "running" | "live" | "paused" | "error";
+
+/** Машинный перевод названий книг на сервере (`/api/recommendation-lib/title-translate`, только чтение). */
+export interface TitleTrStatus {
+  state: TitleTrState;
+  locale: string;
+  model: string;
+  batch: number;
+  concurrency: number;
+  startedAt: string | null;
+  caughtUpAt: string | null;
+  updatedAt: string | null;
+  translated: number;
+  reused: number;
+  liveTranslated: number;
+  failed: number;
+  requests: number;
+  retries: number;
+  promptTokens: number;
+  completionTokens: number;
+  credit: number;
+  errors: number;
+  lastError: string | null;
+  lastErrorAt: string | null;
+  totalBooks: number;
+  doneBooks: number;
+  perMin: number | null;
+  etaMinutes: number | null;
+  inFlight: number;
+  skipped: number;
+  recent: { id: number; source: string; title: string }[];
+}
+
+/** null — сервер ещё без перевода названий (старый nappi). */
+export async function getTitleTranslate(): Promise<TitleTrStatus | null> {
+  try {
+    const res = await request("/api/recommendation-lib/title-translate");
+    return ((await res.json()) as { status: TitleTrStatus }).status;
+  } catch (e) {
+    if (e instanceof Error && e.message.endsWith("HTTP 404")) return null;
+    throw e;
+  }
 }
 
 export async function getFullPass(): Promise<FullPassInfo> {

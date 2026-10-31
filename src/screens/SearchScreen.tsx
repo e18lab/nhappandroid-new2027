@@ -14,6 +14,7 @@ import { buildQuery, getSort, getUploaded, setUploaded, useBrowseFilters } from 
 import { isBookBlacklisted, useBlacklistSets } from "../lib/blacklist";
 import { loadSearchHistory, rememberSearch } from "../lib/library";
 import { KEYS, removeItem, setJSON } from "../lib/storage";
+import { useBookTitle } from "../lib/titleTranslations";
 import { Icon, LoadingSpinner, useToast } from "../ui";
 
 const isNumericBookId = (s: string) => /^\d+$/.test(s.trim());
@@ -184,7 +185,7 @@ export function SearchScreen() {
                     <SmartImage sources={thumbSources(b.thumbnail)} />
                   </span>
                   <span className="search-row-body">
-                    <span className="search-row-text">{b.title.pretty}</span>
+                    <SuggestTitle book={b} />
                     <span className="search-row-meta">{t("book.pages", { count: b.pagesCount })}</span>
                   </span>
                 </button>
@@ -197,4 +198,9 @@ export function SearchScreen() {
       </div>
     </div>
   );
+}
+
+/** Название в подсказке — переведённое, если есть. */
+function SuggestTitle({ book }: { book: Book }) {
+  return <span className="search-row-text">{useBookTitle(book)}</span>;
 }

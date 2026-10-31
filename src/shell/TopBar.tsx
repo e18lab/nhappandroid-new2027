@@ -7,7 +7,9 @@ import { useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useI18n } from "../i18n/I18nContext";
 import { useBrowseFilters } from "../lib/browseFilters";
+import { useLangPref } from "../lib/langPrefs";
 import { useMe } from "../lib/session";
+import { englishOf, useTranslatedTitle } from "../lib/titleTranslations";
 import { CatalogFilterButton } from "./CatalogFilter";
 import { CloudButton } from "./CloudButton";
 import { Icon, NhModal, useLongPress } from "../ui";
@@ -18,7 +20,7 @@ function section(pathname: string): string {
 }
 
 /** Экраны без правых иконок (hideRight в старом). */
-const HIDE_RIGHT = new Set(["settings", "tags", "book", "profile", "characters", "favorites", "favorites-online", "uikit"]);
+const HIDE_RIGHT = new Set(["settings", "tags", "book", "profile", "community", "favorites", "favorites-online", "uikit"]);
 
 export function TopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
   const { t } = useI18n();
@@ -32,6 +34,12 @@ export function TopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
   const seg = section(pathname);
   const isHome = seg === "";
   const q = params.get("query") ?? "";
+  // Книга: название по настройке «Названия книг на языке интерфейса» (как в заголовке экрана книги)
+  const bookId = seg === "book" ? Number(pathname.split("/")[2]) || 0 : 0;
+  const titlesOn = useLangPref("titles");
+  const bookTr = useTranslatedTitle(bookId);
+  const rawTitle = params.get("title") ?? "";
+  const bookTitle = titlesOn ? bookTr || englishOf(rawTitle) || rawTitle : rawTitle;
 
   const title = (() => {
     switch (seg) {
@@ -49,15 +57,15 @@ export function TopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
         return t("menu.recommendations");
       case "history":
         return t("menu.history");
-      case "characters":
-        return t("menu.characters");
+      case "community":
+        return t("nav.community");
       case "settings": {
         // Страница раздела (/settings/grid …) — его название
         const sub = pathname.split("/")[2];
         return sub ? t(`settings.section.${sub}`) : t("menu.settings");
       }
       case "book":
-        return `#${pathname.split("/")[2] ?? ""} - ${params.get("title") ?? ""}`;
+        return `#${pathname.split("/")[2] ?? ""} - ${bookTitle}`;
       case "tags":
         return t("menu.tags");
       case "profile": {

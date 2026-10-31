@@ -14,7 +14,9 @@ import { useI18n } from "../i18n/I18nContext";
 import { isBookBlacklisted, useBlacklistSets } from "../lib/blacklist";
 import type { CardShow } from "../lib/cardView";
 import { isFavorite, toggleFavorite } from "../lib/library";
-import { tagById, useTagsDbReady } from "../lib/tagsDb";
+import { tagById, toSingular, useTagsDbReady } from "../lib/tagsDb";
+import { useTagLabel } from "../lib/tagTranslations";
+import { useBookTitle } from "../lib/titleTranslations";
 import { FilterDropdown, Icon, type SelectItem } from "../ui";
 import { formatShortDate } from "./BookCard";
 import { SmartImage } from "./SmartImage";
@@ -103,6 +105,8 @@ export const BookRow = memo(function BookRow({
 
   // Строка тегов: из полных данных, а до них — по `tag_ids` карточки через локальный справочник
   const dbReady = useTagsDbReady();
+  const tagLabel = useTagLabel();
+  const title = useBookTitle(book);
   const tags = useMemo(() => {
     const order = ["parodies", "characters", "artists", "groups", "tags"];
     const fromIds = book.full
@@ -112,10 +116,13 @@ export const BookRow = memo(function BookRow({
           .filter((x): x is NonNullable<typeof x> => !!x)
           .sort((a, b) => order.indexOf(a.type) - order.indexOf(b.type));
     const names = (book.full ? [...book.parodies, ...book.characters, ...book.artists, ...book.tags.filter((x) => (x.type ?? "tag") === "tag")] : fromIds)
-      .map((x) => String(x?.name ?? "").trim())
+      .map((x) => {
+        const name = String(x?.name ?? "").trim();
+        return name && tagLabel(toSingular(x.type ?? "tag"), name);
+      })
       .filter(Boolean);
     return [...new Set(names)].join(", ");
-  }, [book, dbReady]);
+  }, [book, dbReady, tagLabel]);
 
   const showTags = show.tags && !compact;
 
@@ -132,7 +139,7 @@ export const BookRow = memo(function BookRow({
       </div>
       <div className="ax-row-body">
         <div className="ax-row-head">
-          <h3 className="ax-row-title">{book.title.pretty || book.title.english || `#${book.id}`}</h3>
+          <h3 className="ax-row-title">{title}</h3>
           <BookMenuButton book={book} onRead={onRead} />
         </div>
         {(show.meta || show.date) && (

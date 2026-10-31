@@ -11,6 +11,8 @@ import { useI18n } from "../i18n/I18nContext";
 import { isBookBlacklisted, useBlacklistSets } from "../lib/blacklist";
 import { useEnrichPriority } from "../lib/bookEnrich";
 import { tagMode, toggleIncludeTag, useBrowseFilters } from "../lib/browseFilters";
+import { useTagLabel } from "../lib/tagTranslations";
+import { useBookTitle } from "../lib/titleTranslations";
 import { Icon, Spinner } from "../ui";
 import { SmartImage } from "./SmartImage";
 
@@ -18,6 +20,8 @@ type ChipType = "artist" | "parody" | "character" | "category" | "tag";
 interface Chip {
   type: ChipType;
   name: string;
+  /** Имя на языке интерфейса (для показа и расчёта ширины). */
+  label: string;
 }
 
 const COLLAPSED_ROWS = 2;
@@ -56,6 +60,8 @@ export const BookCard = memo(function BookCard({
   const blacklist = useBlacklistSets();
   const hidden = useMemo(() => isBookBlacklisted(book, blacklist), [book, blacklist]);
   useBrowseFilters();
+  const tagLabel = useTagLabel();
+  const title = useBookTitle(book);
 
   const lang = bookLanguage(book);
   const langShort = (() => {
@@ -71,7 +77,12 @@ export const BookCard = memo(function BookCard({
 
   const chips = useMemo(() => {
     const pick = (arr: { name: string }[], type: ChipType): Chip[] =>
-      arr.map((x) => ({ type, name: String(x?.name ?? "").trim() })).filter((c) => c.name);
+      arr
+        .map((x) => {
+          const name = String(x?.name ?? "").trim();
+          return { type, name, label: tagLabel(type, name) };
+        })
+        .filter((c) => c.name);
     const ordered = [
       ...pick(book.artists, "artist"),
       ...pick(book.parodies, "parody"),
@@ -86,7 +97,7 @@ export const BookCard = memo(function BookCard({
       seen.add(k);
       return true;
     });
-  }, [book]);
+  }, [book, tagLabel]);
 
   // Свёрнутые чипы: сколько влезает в 2 ряда, вместе с «+N» (предсказание без замеров, как в старом)
   const collapsedCount = useMemo(() => {
@@ -96,7 +107,7 @@ export const BookCard = memo(function BookCard({
       let row = 1;
       let x = 0;
       for (let i = 0; i < n; i++) {
-        const w = chipW(chips[i].name);
+        const w = chipW(chips[i].label);
         if (x === 0) x = w;
         else if (x + CHIP_GAP + w > available) {
           row += 1;
@@ -138,7 +149,7 @@ export const BookCard = memo(function BookCard({
         {isNew && <span className="book-card-new">{t("book.new")}</span>}
       </div>
       <div className="book-card-info">
-        {book.title.pretty && <div className="book-card-title">{book.title.pretty}</div>}
+        {title && <div className="book-card-title">{title}</div>}
         <div className="book-card-meta">
           {langShort && <span>{langShort}</span>}
           {langShort && pages > 0 && <i className="book-card-dot" />}
@@ -160,7 +171,7 @@ export const BookCard = memo(function BookCard({
                     toggleIncludeTag(c.type, c.name);
                   }}
                 >
-                  {c.name}
+                  {c.label}
                 </button>
               );
             })}

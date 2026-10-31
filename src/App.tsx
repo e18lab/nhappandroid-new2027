@@ -1,7 +1,8 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { HashRouter, Route, Routes } from "react-router-dom";
+import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Shell } from "./shell/Shell";
 import { HomeScreen } from "./screens/HomeScreen";
+import { CommunityScreen } from "./screens/CommunityScreen";
 import { BookScreen } from "./screens/BookScreen";
 import { ReaderScreen } from "./screens/ReaderScreen";
 import { CommentsScreen } from "./screens/CommentsScreen";
@@ -71,10 +72,8 @@ export default function App() {
                   <Route path="/favorites-online" element={<FavoritesOnlineScreen />} />
                   <Route path="/profile/:id/:slug" element={<ProfileScreen />} />
                   <Route path="/profile/:id/:slug/edit" element={<ProfileEditScreen />} />
-                  <Route
-                    path="/characters"
-                    element={<NoteScreen titleKey="menu.characters" textKey="notes.characters" />}
-                  />
+                  <Route path="/community" element={<CommunityScreen />} />
+                  <Route path="/characters" element={<Navigate to="/community" replace />} />
                   <Route
                     path="/recommendations"
                     element={<NoteScreen titleKey="menu.recommendations" textKey="notes.recommendations" />}

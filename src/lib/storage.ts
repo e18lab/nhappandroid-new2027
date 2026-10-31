@@ -18,6 +18,8 @@ export const KEYS = {
   // Внешний вид и интерфейс (components/settings/keys.ts)
   themeHue: "themeHue", // градусы строкой
   language: "app_language",
+  titlesInAppLang: "ui.lang.titles", // "false" — оригинальные названия книг (lib/langPrefs.ts)
+  tagsInAppLang: "ui.lang.tags", // "false" — теги без перевода
   fullscreen: "ui_fullscreen",
   infiniteScroll: "ui_infinite_scroll",
   uikitAsHome: "uikit_as_home",

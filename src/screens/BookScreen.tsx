@@ -25,6 +25,8 @@ import { cycleTag, tagMode, useBrowseFilters } from "../lib/browseFilters";
 import { cancelDownload, deleteDownload, downloadBook, loadLocalBook, useDownloadState } from "../lib/downloads";
 import { getReadProgress, isFavorite, toggleFavorite } from "../lib/library";
 import { useOnlineFavorite } from "../lib/onlineFavorites";
+import { useTagLabel } from "../lib/tagTranslations";
+import { useBookTitle } from "../lib/titleTranslations";
 import { useMe } from "../lib/session";
 import { KEYS, getItem, setItem } from "../lib/storage";
 import { timeAgo } from "../lib/timeAgo";
@@ -71,6 +73,8 @@ function useColumns(wide: boolean) {
   return { cols, cycle };
 }
 
+const NO_TITLE = { english: "", japanese: "", pretty: "" };
+
 export function BookScreen() {
   const { id = "" } = useParams();
   const [params] = useSearchParams();
@@ -84,6 +88,8 @@ export function BookScreen() {
   const { cols, cycle: cycleCols } = useColumns(wide);
 
   const [book, setBook] = useState<Book | null>(() => cachedFullBook(galleryId) ?? null);
+  // Заголовок: перевод / английское / оригинал — по настройке «Названия книг на языке интерфейса»
+  const heading = useBookTitle(book ?? { id: galleryId, title: NO_TITLE });
   const [error, setError] = useState<unknown>(null);
   const [fav, setFav] = useState(() => isFavorite(galleryId));
   const me = useMe();
@@ -284,9 +290,10 @@ export function BookScreen() {
   const titles = (
     <>
       <h1 className={wide ? "book-title book-title-wide" : "book-title"} onContextMenu={() => copy(book.title.pretty)}>
-        {book.title.pretty}
+        {heading}
       </h1>
-      {book.title.english && book.title.english !== book.title.pretty && <p className="book-subtitle">{book.title.english}</p>}
+      {/* Заголовок — перевод на язык интерфейса или английское название; ниже полные оригиналы */}
+      {book.title.english && book.title.english !== heading && <p className="book-subtitle">{book.title.english}</p>}
       {book.title.japanese && book.title.japanese !== book.title.english && (
         <p className="book-subtitle book-subtitle-ja">{book.title.japanese}</p>
       )}
@@ -533,6 +540,7 @@ export function BookScreen() {
 
 /** Группа тегов — TagBlock: «Метка:», капсулы с числом и кнопкой цикла фильтра. */
 function TagBlock({ label, tags, onTagPress }: { label: string; tags: Tag[]; onTagPress: (tag: Tag) => void }) {
+  const tagLabel = useTagLabel();
   if (!tags.length) return null;
   return (
     <div className="tag-block">
@@ -552,7 +560,7 @@ function TagBlock({ label, tags, onTagPress }: { label: string; tags: Tag[]; onT
                 void navigator.clipboard?.writeText(tag.name).catch(() => undefined);
               }}
             >
-              <span className="tag-pill-name">{tag.name}</span>
+              <span className="tag-pill-name">{tagLabel(tag.type, tag.name)}</span>
               {!!tag.count && <span className="tag-pill-count">{tag.count}</span>}
               <button
                 type="button"

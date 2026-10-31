@@ -1,6 +1,6 @@
 /**
  * Нижняя панель — как FloatingTabBar в Anixart: плавающая «таблетка» с главными разделами
- * (Главная, Персонажи, Настройки) и профилем — аватаром справа. Поиск — в шапке.
+ * (Главная, Сообщество, Настройки) и профилем — аватаром справа. Поиск — в шапке.
  * У выбранного раздела подложка проявляется и подпись раскрывается анимацией, у остальных — только иконка.
  * «Профиль» после входа открывает свою страницу профиля, без входа — сразу окно входа.
  * Под панелью — затемнение фона, чтобы список не спорил с ней.
@@ -22,7 +22,7 @@ interface NavItem {
 
 export const NAV_ITEMS: NavItem[] = [
   { key: "home", icon: "home", labelKey: "nav.home", match: (p) => p === "/" || p.startsWith("/explore") || LIBRARY_ROUTES.some((r) => p.startsWith(r)) },
-  { key: "characters", icon: "users", labelKey: "nav.characters", match: (p) => p.startsWith("/characters") },
+  { key: "community", icon: "users", labelKey: "nav.community", match: (p) => p.startsWith("/community") },
   { key: "settings", icon: "settings", labelKey: "menu.settings", match: (p) => p.startsWith("/settings") },
   { key: "profile", icon: "user", labelKey: "nav.profile", match: (p, own) => p === "/me" || (!!own && p === own) },
 ];
@@ -32,8 +32,8 @@ export function navRoute(key: string, own: string): string {
   switch (key) {
     case "home":
       return "/";
-    case "characters":
-      return "/characters";
+    case "community":
+      return "/community";
     case "settings":
       return "/settings";
     default:
