@@ -338,7 +338,7 @@ export function BookScreen() {
           disabled={online.loading}
           onClick={() => void online.toggle()}
         >
-          {online.loading ? <Spinner size={14} /> : <Icon name="heart" size={14} />}
+          {online.loading ? <Spinner size={14} /> : <Icon name="heart" size={14} solid={online.liked} />}
           <span className="book-pill-text">{fmtNum(book.favorites)}</span>
         </button>
       )}

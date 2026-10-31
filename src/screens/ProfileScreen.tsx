@@ -1,23 +1,24 @@
 /**
  * Публичный профиль nhentai — перенос `app/profile/[id]/[slug].tsx` (релиз 1.3.1).
- * Слева (на телефоне — сверху): баннер, аватар, имя, ID, «о себе», дата регистрации, любимые теги.
- * Справа: последние избранные книги лентой и последние комментарии со ссылкой на книгу.
+ * Вид нового кита: сверху размытый аватар-фон, крупный аватар, имя, ID и дата регистрации, «Редактировать»
+ * (свой профиль — открывает Настройки → Аккаунт). Ниже карточки-группы: «о себе», любимые теги,
+ * последние избранные — каруселью карточек того вида, что выбран в настройках, последние комментарии со ссылкой на книгу.
  *
  * Баннер в старом окрашивался в основной цвет аватара (react-native-image-colors); аватар лежит на
  * CDN без CORS, пиксели из страницы не прочитать — вместо цвета показываем размытый аватар.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate, useParams } from "react-router-dom";
 import { getUserProfile } from "../api/account";
 import { galleryRelatedToBook, type Book } from "../api/book";
 import { initCdn } from "../api/media";
 import type { UserProfile } from "../api/types";
-import { BookCard } from "../components/BookCard";
+import { BookCarousel } from "../components/BookCollection";
 import { avatarUrl, CommentCard } from "../components/CommentCard";
 import { useI18n, type ResolvedLocale } from "../i18n/I18nContext";
-import { useEnrichedBooks } from "../lib/bookEnrich";
 import { useMe } from "../lib/session";
-import { Icon, LoadingSpinner, NhModal } from "../ui";
+import { Icon, ListGroup, LoadingSpinner } from "../ui";
 
 function decodeHtml(s: string): string {
   return s
@@ -71,7 +72,6 @@ export function ProfileScreen() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [busy, setBusy] = useState(true);
   const [preview, setPreview] = useState(false);
-  const favRow = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let alive = true;
@@ -92,7 +92,6 @@ export function ProfileScreen() {
     () => (profile?.recent_favorites ?? []).slice(0, 12).map((f) => galleryRelatedToBook({ ...f, tag_ids: [] })),
     [profile],
   );
-  const recentBooks = useEnrichedBooks(recent);
 
   if (busy && !profile) return <LoadingSpinner />;
   if (!profile) {
@@ -113,77 +112,61 @@ export function ProfileScreen() {
         .filter(Boolean)
     : [];
   const canEdit = !!me && me.id === profile.id;
-  const scrollFavs = (dx: number) => favRow.current?.scrollBy({ left: dx, behavior: "smooth" });
+  const comments = (profile.recent_comments ?? []).slice(0, 20);
+  const openBook = (b: Book) => navigate(`/book/${b.id}?title=${encodeURIComponent(b.title.pretty)}`);
 
   return (
-    <div className="screen-scroll profile-screen">
-      <div className="profile-layout">
-        <section className="profile-panel">
-          <div className="profile-banner">{avatar && <img src={avatar} alt="" aria-hidden />}</div>
-          <div className="profile-head">
-            <button type="button" className="profile-avatar" onClick={() => avatar && setPreview(true)}>
-              {avatar ? <img src={avatar} alt="" /> : <Icon name="user" size={48} />}
-            </button>
-            <div className="profile-name">{profile.username || "user"}</div>
-            <div className="profile-sub">ID: {profile.id}</div>
-            {canEdit && (
-              <button
-                type="button"
-                className="profile-edit"
-                onClick={() => navigate(`/profile/${profile.id}/${encodeURIComponent(profile.slug || slug)}/edit`)}
-              >
-                {t("profile.edit.button")}
-              </button>
-            )}
-            {about && <p className="profile-about">{about}</p>}
-            {!!profile.date_joined && <p className="profile-joined">📅 {joinedAgo(resolved, profile.date_joined)}</p>}
-            {tags.length > 0 && (
-              <>
-                <div className="profile-subheader">{t("tags.tags")}</div>
-                <div className="profile-tags">
-                  {tags.slice(0, 36).map((tag) => (
-                    <span key={tag}>{tag}</span>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        </section>
+    <div className="screen-scroll set-page pf-screen">
+      <header className="pf-hero">
+        <div className="pf-banner" aria-hidden>
+          {avatar && <img src={avatar} alt="" />}
+        </div>
+        <button type="button" className="pf-avatar" onClick={() => avatar && setPreview(true)}>
+          {avatar ? <img src={avatar} alt="" /> : <Icon name="user" size={44} />}
+        </button>
+        <h1 className="pf-name">{profile.username || "user"}</h1>
+        <div className="pf-sub">
+          <span>ID {profile.id}</span>
+          {!!profile.date_joined && <span>{joinedAgo(resolved, profile.date_joined)}</span>}
+        </div>
+        {canEdit && (
+          <button type="button" className="pf-edit" onClick={() => navigate("/settings/account")}>
+            <Icon name="edit-2" size={16} />
+            {t("profile.edit.button")}
+          </button>
+        )}
+      </header>
 
-        <section className="profile-panel profile-right">
-          <div className="profile-section-head">
-            <span className="profile-section-title">{t("menu.favorites")}</span>
-            {recent.length > 0 && (
-              <span className="profile-arrows">
-                <button type="button" aria-label={t("common.back")} onClick={() => scrollFavs(-220)}>
-                  <Icon name="chevron-left" size={22} />
-                </button>
-                <button type="button" aria-label={t("common.nextPage")} onClick={() => scrollFavs(220)}>
-                  <Icon name="chevron-right" size={22} />
-                </button>
-              </span>
-            )}
-          </div>
-          {recent.length === 0 ? (
-            <p className="profile-empty">{t("historyNotFound")}</p>
-          ) : (
-            <div ref={favRow} className="profile-favs">
-              {recentBooks.map((b) => (
-                <BookCard
-                  key={b.id}
-                  book={b}
-                  cardWidth={160}
-                  onPress={() => navigate(`/book/${b.id}?title=${encodeURIComponent(b.title.pretty)}`)}
-                />
-              ))}
-            </div>
-          )}
+      {about && (
+        <ListGroup title={t("profile.edit.about")}>
+          <p className="pf-about">{about}</p>
+        </ListGroup>
+      )}
 
-          <div className="profile-section-head">
-            <span className="profile-section-title">{t("comments.title")}</span>
+      {tags.length > 0 && (
+        <ListGroup title={t("profile.edit.favoriteTags")}>
+          <div className="pf-tags">
+            {tags.slice(0, 36).map((tag) => (
+              <span key={tag}>{tag}</span>
+            ))}
           </div>
-          <div className="profile-comments">
-            {(profile.recent_comments ?? []).slice(0, 20).map((c) => (
+        </ListGroup>
+      )}
+
+      <ListGroup title={t("menu.favorites")}>
+        {recent.length === 0 ? (
+          <p className="pf-empty">{t("historyNotFound")}</p>
+        ) : (
+          <div className="pf-favs">
+            <BookCarousel books={recent} onPress={openBook} />
+          </div>
+        )}
+      </ListGroup>
+
+      {comments.length > 0 && (
+        <ListGroup title={t("comments.title")}>
+          <div className="pf-comments">
+            {comments.map((c) => (
               <CommentCard
                 key={c.id}
                 comment={{
@@ -205,12 +188,37 @@ export function ProfileScreen() {
               />
             ))}
           </div>
-        </section>
-      </div>
+        </ListGroup>
+      )}
 
-      <NhModal visible={preview} onClose={() => setPreview(false)}>
-        <img className="profile-avatar-preview" src={avatar} alt="" />
-      </NhModal>
+      {preview && avatar && <AvatarViewer src={avatar} onClose={() => setPreview(false)} />}
     </div>
+  );
+}
+
+/**
+ * Аватар целиком: затемнение с размытием на весь экран, по центру картинка со скруглением (не больше
+ * 512px), появляется с увеличением. Закрывается нажатием в любое место или Esc.
+ */
+function AvatarViewer({ src, onClose }: { src: string; onClose: () => void }) {
+  const [closing, setClosing] = useState(false);
+  const close = () => setClosing(true);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setClosing(true);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  return createPortal(
+    <div
+      className={closing ? "pf-viewer is-closing" : "pf-viewer"}
+      role="dialog"
+      onClick={close}
+      onAnimationEnd={(e) => closing && e.target === e.currentTarget && onClose()}
+    >
+      <img src={src} alt="" />
+    </div>,
+    document.body,
   );
 }

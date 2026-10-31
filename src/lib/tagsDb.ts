@@ -3,6 +3,8 @@
  * `scripts/build-tags-db.mjs`. Грузится отдельным файлом только при открытии экрана тегов.
  * Поиск и ранжирование — как `scoreByQuery` в старом `components/tags/helpers.ts`.
  */
+import { useSyncExternalStore } from "react";
+
 export type TagKind = "tags" | "artists" | "characters" | "parodies" | "groups";
 export type TagSingular = "tag" | "artist" | "character" | "parody" | "group";
 export type TagMode = "include" | "exclude";
@@ -37,6 +39,8 @@ export function toSingular(s: string): TagSingular {
 let all: TagItem[] | null = null;
 let byKey: Map<string, TagItem> | null = null;
 let loading: Promise<TagItem[]> | null = null;
+let byId: Map<number, TagItem> | null = null;
+const readyListeners = new Set<() => void>();
 
 const keyOf = (type: string, name: string) => `${toPlural(type)}:${name}`;
 
@@ -52,10 +56,29 @@ export function loadTagsDb(): Promise<TagItem[]> {
       }
       all = list;
       byKey = new Map(list.map((t) => [keyOf(t.type, t.name), t]));
+      byId = new Map(list.map((t) => [t.id, t]));
+      for (const fn of readyListeners) fn();
       return list;
     });
   }
   return loading;
+}
+
+/** Тег по id (карточки списка приходят только с `tag_ids`); до загрузки справочника — undefined. */
+export function tagById(id: number): TagItem | undefined {
+  return byId?.get(id);
+}
+
+/** Справочник загружен (для перерисовки, когда он подъедет). */
+export function useTagsDbReady(): boolean {
+  return useSyncExternalStore(
+    (cb) => {
+      readyListeners.add(cb);
+      void loadTagsDb();
+      return () => readyListeners.delete(cb);
+    },
+    () => !!byId,
+  );
 }
 
 /** Тег из справочника по типу (любое число) и имени; до загрузки справочника — undefined. */

@@ -4,11 +4,12 @@
  * заголовок в 2 строки, строка «JP · 20 стр. · 31 мар. 2026», цветные чипы тегов
  * в 2 ряда с «+N», пока тегов нет — плашка «Собирается информация».
  */
-import { useMemo, useState } from "react";
+import { memo, useMemo, useRef, useState } from "react";
 import { bookLanguage, type Book } from "../api/book";
 import { thumbSources } from "../api/media";
 import { useI18n } from "../i18n/I18nContext";
 import { isBookBlacklisted, useBlacklistSets } from "../lib/blacklist";
+import { useEnrichPriority } from "../lib/bookEnrich";
 import { tagMode, toggleIncludeTag, useBrowseFilters } from "../lib/browseFilters";
 import { Icon, Spinner } from "../ui";
 import { SmartImage } from "./SmartImage";
@@ -39,7 +40,7 @@ export function formatShortDate(date: Date, locale: string): string {
   return `${get("day")} ${get("month")} ${get("year")}`;
 }
 
-export function BookCard({
+export const BookCard = memo(function BookCard({
   book,
   cardWidth,
   onPress,
@@ -50,6 +51,8 @@ export function BookCard({
 }) {
   const { t, resolved } = useI18n();
   const [expanded, setExpanded] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  useEnrichPriority(root, book.id, !book.full);
   const blacklist = useBlacklistSets();
   const hidden = useMemo(() => isBookBlacklisted(book, blacklist), [book, blacklist]);
   useBrowseFilters();
@@ -123,7 +126,7 @@ export function BookCard({
   const more = chips.length - collapsedCount;
 
   return (
-    <div className="book-card" style={{ width: cardWidth }} role="button" tabIndex={0} onClick={() => onPress?.(book)}>
+    <div ref={root} className="book-card" style={{ width: cardWidth }} role="button" tabIndex={0} onClick={() => onPress?.(book)}>
       <div className={hidden ? "book-card-cover is-blacklisted" : "book-card-cover"} style={{ height: Math.round(cardWidth * 1.4) }}>
         <SmartImage sources={thumbSources(book.cover)} />
         {hidden && (
@@ -196,4 +199,4 @@ export function BookCard({
       </div>
     </div>
   );
-}
+});

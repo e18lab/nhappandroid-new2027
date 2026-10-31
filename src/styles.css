@@ -1,7 +1,7 @@
 /* Цвета по умолчанию до applyTheme; реальные значения задаёт theme.ts (палитра старого приложения). */
 :root {
-  --bg: #242324;
-  --page: #1c1b1c;
+  --bg: #121113;
+  --page: #0f0e10;
   --accent: #a892d3;
   --txt: #e8e6ec;
   --sub: #979797;
@@ -16,8 +16,8 @@
   --surface: #222122;
   --icon: #ceccd3;
   color-scheme: dark;
-  /* Старое приложение рисовало системным шрифтом: Roboto на Android, Segoe UI на Windows */
-  font-family: Roboto, system-ui, "Segoe UI", sans-serif;
+  /* Редизайн: MedeoSans (medeo-font), запасной — системный */
+  font-family: var(--font-medeo-sans, Roboto, system-ui, "Segoe UI", sans-serif);
   -webkit-tap-highlight-color: transparent;
   background: var(--bg);
   color: var(--txt);
@@ -1545,7 +1545,7 @@ button.book-chip:active { opacity: 0.75; }
 .tag-row-remove { padding: 6px; display: grid; place-items: center; border: 0; border-radius: 999px; background: none; color: var(--sub); }
 .tag-row-remove { padding: 8px; color: inherit; }
 .tag-row-fav.is-fav { color: var(--accent); }
-.tag-row-fav.is-fav svg { fill: currentColor; }
+/* .tag-row-fav.is-fav: заливку даёт Icon solid */
 
 .tags-selected { height: 100%; display: flex; flex-direction: column; padding: 12px 12px 0; }
 .tags-selected-head { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
@@ -1649,91 +1649,6 @@ button.book-chip:active { opacity: 0.75; }
 .col-footer button.is-tag { background: var(--tag-bg); color: var(--title); }
 .col-footer button.is-primary { background: var(--accent); color: var(--bg); }
 
-/* ── Вход (SideMenu/LoginModal.tsx) ── */
-.login-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 970;
-  padding: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.55);
-  animation: ui-fade-in 150ms ease-out;
-}
-.login-card {
-  width: 100%;
-  max-width: 420px;
-  max-height: 92%;
-  padding: 16px 20px;
-  display: flex;
-  flex-direction: column;
-  border-radius: 16px;
-  background: var(--page);
-}
-.login-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-.login-title { font-size: 18px; font-weight: 800; color: var(--title); }
-.login-close { width: 36px; height: 36px; display: grid; place-items: center; border: 0; border-radius: 10px; background: none; color: var(--title); }
-.login-close:active { background: rgba(255, 255, 255, 0.12); }
-.login-tabs { display: flex; gap: 4px; margin-bottom: 12px; border-bottom: 1px solid color-mix(in srgb, var(--sub) 20%, transparent); }
-.login-tabs button {
-  padding: 8px 10px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: none;
-  color: var(--sub);
-  font-size: 13px;
-  font-weight: 500;
-}
-.login-tabs button.is-active { border-bottom-color: var(--accent); color: var(--accent); font-weight: 800; }
-.login-body { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
-.login-field { display: flex; flex-direction: column; gap: 6px; }
-.login-field > span { font-size: 12px; font-weight: 600; color: var(--sub); }
-.login-field input {
-  height: 44px;
-  padding: 0 12px;
-  border: 1px solid color-mix(in srgb, var(--sub) 27%, transparent);
-  border-radius: 10px;
-  outline: 0;
-  background: var(--bg);
-  color: var(--title);
-  font-size: 15px;
-}
-.login-field input:focus { border-color: var(--accent); }
-.login-field input::placeholder { color: color-mix(in srgb, var(--sub) 60%, transparent); }
-.login-hint { margin: 0; font-size: 12px; line-height: 17px; color: var(--sub); }
-.login-captcha {
-  height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  border: 1px dashed color-mix(in srgb, var(--accent) 50%, transparent);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--accent) 6%, transparent);
-  color: var(--accent);
-  font-size: 14px;
-  font-weight: 700;
-}
-.login-captcha.is-done { border-style: solid; background: color-mix(in srgb, var(--accent) 14%, transparent); }
-.login-error { padding: 10px 12px; border-radius: 10px; background: #ff444422; color: #f88; font-size: 13px; }
-.login-submit {
-  margin-top: 8px;
-  padding: 14px 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  border: 0;
-  border-radius: 12px;
-  background: var(--accent);
-  color: var(--page);
-  font-size: 15px;
-  font-weight: 800;
-}
-.login-submit:disabled { opacity: 0.72; }
-.login-footer { margin: 4px 0 0; text-align: center; font-size: 11px; color: var(--sub); opacity: 0.7; }
-
 /* Карточка вошедшего пользователя в подвале меню */
 .side-menu-me {
   width: 100%;
@@ -1762,7 +1677,7 @@ button.book-chip:active { opacity: 0.75; }
 
 /* Онлайн-избранное на странице книги (красное сердечко, как в BookHeader) */
 .book-pill-like.is-liked { border-color: #ff5a5f; background: #ff5a5f1a; color: #ff5a5f; }
-.book-pill-like.is-liked svg { fill: currentColor; }
+/* .book-pill-like.is-liked: заливку даёт Icon solid */
 
 /* ── Онлайн-избранное (app/favoritesOnline.tsx, BookListOnline) ── */
 .fo-screen { position: relative; background: var(--bg); }

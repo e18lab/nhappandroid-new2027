@@ -46,8 +46,63 @@ if (typeof window !== "undefined") {
   });
 }
 
+/** Жест «назад» с прогрессом (predictive back): анимацию ведёт Shell (`usePredictiveBack`). */
+export interface BackGesture {
+  /** Можно ли сейчас вести экран за жестом. */
+  canStart(): boolean;
+  start(edge: "left" | "right"): void;
+  progress(p: number): void;
+  cancel(): void;
+  /** Жест доведён до конца: доиграть анимацию и уйти назад. */
+  commit(): void;
+}
+
+let gesture: BackGesture | null = null;
+let gestureActive = false;
+let fallback: (canGoBack: boolean) => void = () => {};
+
+export function setBackGesture(g: BackGesture | null) {
+  gesture = g;
+}
+
+declare global {
+  interface Window {
+    /** Вызывается из MainActivity (OnBackPressedCallback): жест системного «назад» и нажатие. */
+    __nhBack?: {
+      start(edge: "left" | "right"): void;
+      progress(p: number): void;
+      cancel(): void;
+      press(canGoBack: boolean): void;
+    };
+  }
+}
+
+if (typeof window !== "undefined") {
+  window.__nhBack = {
+    start(edge) {
+      gestureActive = overlayStack.length === 0 && !!gesture?.canStart();
+      if (gestureActive) gesture!.start(edge);
+    },
+    progress(p) {
+      if (gestureActive) gesture?.progress(p);
+    },
+    cancel() {
+      if (gestureActive) gesture?.cancel();
+      gestureActive = false;
+    },
+    press(canGoBack) {
+      if (gestureActive && gesture) {
+        gestureActive = false;
+        gesture.commit();
+        return;
+      }
+      fallback(canGoBack);
+    },
+  };
+}
+
 /**
- * Системная кнопка «Назад» на Android.
+ * Системная кнопка «Назад» на Android (и жест «назад» — его ведёт MainActivity через `window.__nhBack`).
  * Сначала закрывается верхний оверлей (`useBackHandler`), затем `onBack`
  * (возвращает true, если сам обработал нажатие — например, закрыл меню).
  * Иначе — шаг назад по истории, а с первого экрана — выход из приложения.
@@ -58,28 +113,16 @@ export function useAndroidBack(onBack: () => boolean): void {
 
   useEffect(() => {
     if (!inTauri()) return;
-    let unregister: (() => void) | null = null;
-    let disposed = false;
-
-    (async () => {
-      const { onBackButtonPress, exit } = await import("@tauri-apps/api/app");
-      const listener = await onBackButtonPress(({ canGoBack }) => {
-        if (closeTopOverlay()) return;
-        if (handler.current()) return;
-        if (canGoBack) window.history.back();
-        // Истории нет (например, экран открыт по ссылке), но мы не на главной — сначала на главную.
-        else if (!isHomeRoute()) window.location.replace("#/");
-        else void exit(0);
-      });
-      if (disposed) void listener.unregister();
-      else unregister = () => void listener.unregister();
-    })().catch(() => {
-      // На ПК слушатель не поддерживается — ничего не делаем.
-    });
-
+    fallback = (canGoBack) => {
+      if (closeTopOverlay()) return;
+      if (handler.current()) return;
+      if (canGoBack) window.history.back();
+      // Истории нет (например, экран открыт по ссылке), но мы не на главной — сначала на главную.
+      else if (!isHomeRoute()) window.location.replace("#/");
+      else void import("@tauri-apps/api/app").then(({ exit }) => exit(0));
+    };
     return () => {
-      disposed = true;
-      unregister?.();
+      fallback = () => {};
     };
   }, []);
 }

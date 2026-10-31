@@ -67,29 +67,50 @@ export interface ThemeColors {
 }
 
 export function themeColors(): ThemeColors {
+  // Редизайн: ночная тема Anixart (значения из ресурсов APK, `values-night`). Фон и поверхности —
+  // нейтральные серые как там; оттенок темы — только у акцента и выбранной «пилюли» (там — лаванда).
+  // Имена те же, что в старом приложении, — экраны и кит берут их как раньше.
   return {
-    bg: hsbToHex(6, 36),
-    page: hsbToHex(6, 28),
+    bg: "#121212", // screen_background
+    page: "#121212",
     shadow: "#000",
-    accent: hsbToHex(78, 210),
-    txt: hsbToHex(6, 235),
-    sub: hsbToHex(0, 150),
-    title: hsbToHex(16, 225),
-    metaText: hsbToHex(8, 200),
-    tagBg: hsbToHex(10, 48),
-    tagText: hsbToHex(8, 225),
-    newBadgeBg: "#ff4757",
-    incBg: hsbToHex(52, 54),
-    incTxt: hsbToHex(20, 225),
-    excBg: hsbToHex(0, 42),
-    excTxt: hsbToHex(0, 210),
-    searchBg: hsbToHex(6, 34),
-    searchTxt: hsbToHex(6, 235),
-    menuBg: hsbToHex(6, 32),
-    menuTxt: hsbToHex(6, 235),
-    related: hsbToHex(6, 28),
-    surfaceElevated: hsbToHex(6, 34),
-    iconOnSurface: hsbToHex(8, 210),
+    accent: hsbToHex(27, 247), // lavender #e8def8 при оттенке 266°
+    txt: "#e0e0e0", // primaryTextColor
+    sub: "#9e9e9e", // secondaryTextColor
+    title: "#e0e0e0",
+    metaText: "#9e9e9e",
+    tagBg: "#252525",
+    tagText: "#e0e0e0",
+    newBadgeBg: "#f04e5c", // carmine
+    incBg: hsbToHex(58, 88),
+    incTxt: hsbToHex(27, 247),
+    excBg: "#3a1b1b", // dialog_danger_background
+    excTxt: "#ff8a80",
+    searchBg: "#252525", // search_bar_alt
+    searchTxt: "#e0e0e0",
+    menuBg: "#252525",
+    menuTxt: "#e0e0e0",
+    related: "#1a1a1a", // backgroundColorTertiary
+    surfaceElevated: "#252525", // backgroundColorSecondary
+    iconOnSurface: "#e0e0e0",
+  };
+}
+
+/**
+ * Токены нового кита (`--ax-*`), из ночной темы Anixart: поверхности, выбранная «пилюля»
+ * (bottom_nav_indicator_active #494458 — здесь с оттенком темы), подпись выбранного (…_label_checked),
+ * нижняя панель (bottom_nav_background), неактивные иконки панели, разделитель.
+ */
+export function kitTokens(): Record<string, string> {
+  return {
+    "--ax-surface": "#1a1a1a",
+    "--ax-surface-2": "#252525",
+    "--ax-selected": hsbToHex(58, 88),
+    "--ax-on-selected": hsbToHex(24, 247),
+    "--ax-line": "rgba(255, 255, 255, 0.1)",
+    "--ax-nav": "#252525",
+    "--ax-nav-icon": "#757575",
+    "--ax-muted": "#757575", // tertiaryTextColor
   };
 }
 
@@ -133,6 +154,7 @@ export function applyTheme(colors: ThemeColors): void {
   root.style.setProperty("--surface", colors.surfaceElevated);
   root.style.setProperty("--icon", colors.iconOnSurface);
   root.style.setProperty("--on-accent", contrastTextOn(colors.accent));
+  for (const [name, value] of Object.entries(kitTokens())) root.style.setProperty(name, value);
   root.style.colorScheme = "dark";
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", colors.page);
 }

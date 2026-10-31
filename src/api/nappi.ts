@@ -37,3 +37,71 @@ export async function syncUser(params: {
 export async function touchOnline(userId: number, deviceId: string): Promise<void> {
   await request("/api/users/me/online", { method: "PATCH", userId, body: JSON.stringify({ deviceId }) });
 }
+
+/** Книга из библиотеки сервера (`/api/recommendation-lib/books/batch`): метаданные и имена тегов без nhentai. */
+export interface NappiBook {
+  book_id: string | number;
+  media_id: string | null;
+  title_english: string | null;
+  title_japanese: string | null;
+  title_pretty: string | null;
+  parodies: string[] | null;
+  characters: string[] | null;
+  artists: string[] | null;
+  groups: string[] | null;
+  languages: string[] | null;
+  categories: string[] | null;
+  pages: number | null;
+  uploaded_at: string | null;
+  tag_ids: number[] | null;
+  tags: string[] | null;
+}
+
+/** До 500 книг одним запросом (как `fetchBooksFromRecommendationLib` в старом); `missing` — каких на сервере нет. */
+export async function getBooksBatch(ids: number[]): Promise<{ books: NappiBook[]; missing: number[] }> {
+  const res = await request(`/api/recommendation-lib/books/batch?q=${ids.join(",")}`);
+  const data = (await res.json()) as { books?: NappiBook[]; missing?: number[] };
+  return { books: data.books ?? [], missing: data.missing ?? [] };
+}
+
+export type FullPassState = "idle" | "running" | "paused" | "done" | "error";
+
+/** Прогресс полного прохода каталога на сервере (`/api/recommendation-lib/full-pass`, только чтение). */
+export interface FullPassInfo {
+  status: {
+    state: FullPassState;
+    startedAt: string | null;
+    finishedAt: string | null;
+    updatedAt: string | null;
+    fromPage: number;
+    toPage: number;
+    nextPage: number;
+    totalPages: number;
+    pagesDone: number;
+    cardsSeen: number;
+    inserted: number;
+    updated: number;
+    unchanged: number;
+    tagsResolved: number;
+    fullQueued: number;
+    fullFetched: number;
+    fullMissing: number;
+    errors: number;
+    lastError: string | null;
+    lastErrorAt: string | null;
+    pagesPerMin: number | null;
+    etaMinutes: number | null;
+    fullQueueSize: number;
+  };
+  limiter: {
+    apiKey: boolean;
+    buckets: Record<string, { rpm: number; sent: number; limited: number; waiting: number; pausedForMs: number }>;
+  };
+  booksInLib: number;
+  maxBookId: number;
+}
+
+export async function getFullPass(): Promise<FullPassInfo> {
+  const res = await request("/api/recommendation-lib/full-pass");
+  return (await res.json()) as FullPassInfo;
+}

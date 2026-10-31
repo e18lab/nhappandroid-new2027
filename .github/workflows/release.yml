@@ -1,0 +1,134 @@
+# Новая версия в package.json → сборка APK и установщика Windows, пакет обновления (`ota:pack:native`)
+# и релиз `v<версия>` (`ota:release`) — приложения подтягивают его из releases/latest.
+# Секрет репозитория: OTA_PRIVATE_KEY (содержимое update/keys/ota-private.pem). Необязательные —
+# ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_PASSWORD (ключ — src-tauri/gen/android/keystore/nhapp.keystore).
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths: [package.json]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      release: ${{ steps.v.outputs.release }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(node -p "require('./package.json').version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if gh release view "v$version" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "v$version уже выпущена — пропускаю"
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  windows:
+    needs: version
+    if: needs.version.outputs.release == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      - run: npx tauri build --bundles nsis
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: src-tauri/target/release/bundle/nsis/*-setup.exe
+          if-no-files-found: error
+
+  android:
+    needs: version
+    if: needs.version.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      - name: Подпись APK
+        env:
+          # Ключ — debug-ключ релиза 1.3.1 со стандартным паролем; секреты — если ключ когда-нибудь сменится
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD || 'android' }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD || 'android' }}
+        run: |
+          cat > src-tauri/gen/android/keystore.properties <<EOF
+          storeFile=../keystore/nhapp.keystore
+          storePassword=$STORE_PASSWORD
+          keyAlias=androiddebugkey
+          keyPassword=$KEY_PASSWORD
+          EOF
+      - name: Сборка APK
+        run: |
+          export NDK_HOME="$ANDROID_NDK_LATEST_HOME"
+          npx tauri android build --apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
+          if-no-files-found: error
+
+  release:
+    needs: [version, windows, android]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows
+          path: src-tauri/target/release/bundle/nsis
+      - uses: actions/download-artifact@v4
+        with:
+          name: android
+          path: src-tauri/gen/android/app/build/outputs/apk/universal/release
+      - name: Ключ подписи обновлений
+        env:
+          OTA_PRIVATE_KEY: ${{ secrets.OTA_PRIVATE_KEY }}
+        run: |
+          mkdir -p update/keys
+          printf '%s\n' "$OTA_PRIVATE_KEY" > update/keys/ota-private.pem
+      - run: npm run ota:pack:native
+      - run: npm run ota:release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OTA_REPO: ${{ github.repository }}

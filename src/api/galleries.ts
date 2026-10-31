@@ -12,7 +12,7 @@
  * DELETE /galleries/{id}/favorite   Убрать из избранного
  * POST   /galleries/{id}/edit       Правка тегов (только staff)
  */
-import { apiGet, buildQuery, nhApi } from "./client";
+import { apiGet, buildQuery, nhApi, type RequestOptions } from "./client";
 import type { Gallery, GalleryCard, GalleryRelated, Paginated, SortOrder, SuccessResponse } from "./types";
 
 export const PER_PAGE = 25;
@@ -78,8 +78,8 @@ export async function getRandomGalleryId(): Promise<number> {
 
 export type GalleryInclude = "comments" | "related" | "favorite";
 
-export async function getGallery(id: number, include?: GalleryInclude[]): Promise<Gallery> {
-  return apiGet(`/galleries/${id}${buildQuery({ include: include?.join(",") })}`);
+export async function getGallery(id: number, include?: GalleryInclude[], opts?: RequestOptions): Promise<Gallery> {
+  return apiGet(`/galleries/${id}${buildQuery({ include: include?.join(",") })}`, opts);
 }
 
 export function cardTitle(card: GalleryCard): string {

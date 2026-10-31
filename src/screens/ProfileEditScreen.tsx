@@ -1,6 +1,7 @@
 /**
- * Настройки профиля — перенос `app/profile/[id]/edit.tsx` (релиз 1.3.1).
- * Аватар (сменить / удалить), имя, email, «о себе», любимые теги, чёрный список тегов, смена пароля.
+ * Настройки профиля — перенос `app/profile/[id]/edit.tsx` (релиз 1.3.1); открываются из настроек как «Аккаунт»
+ * (`/settings/account`), вид — как страница аккаунта в настройках Telegram.
+ * Аватар (сменить / удалить), имя, email, «о себе», любимые теги, чёрный список тегов, смена пароля, выход.
  * Кнопка «Сохранить» появляется, когда что-то изменено; в старом она жила в шапке, здесь — плавающая снизу.
  *
  * Аватар: в старом галерея с обрезкой 1:1 и качеством 0.85 — здесь выбор файла и обрезка по центру в квадрат.
@@ -14,8 +15,8 @@ import type { TagShort, TagType } from "../api/types";
 import { avatarUrl } from "../components/CommentCard";
 import { useI18n } from "../i18n/I18nContext";
 import { setBlacklistCache } from "../lib/blacklist";
-import { refreshMe } from "../lib/session";
-import { Icon, LoadingSpinner, Select, Spinner, useToast, type IconName } from "../ui";
+import { refreshMe, signOut } from "../lib/session";
+import { Icon, ListField, ListHint, LoadingSpinner, Select, Spinner, TileIcon, useToast } from "../ui";
 
 interface FormData {
   username: string;
@@ -52,46 +53,6 @@ async function squareAvatar(file: File): Promise<Blob> {
   bmp.close();
   return new Promise((resolve, reject) =>
     canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("encode"))), "image/jpeg", 0.85),
-  );
-}
-
-function Field({
-  label,
-  icon,
-  value,
-  onChange,
-  multiline,
-  type = "text",
-  placeholder,
-}: {
-  label: string;
-  icon: IconName;
-  value: string;
-  onChange: (v: string) => void;
-  multiline?: boolean;
-  type?: "text" | "email" | "password";
-  placeholder?: string;
-}) {
-  return (
-    <label className="pe-field">
-      <span className="pe-field-label">
-        <Icon name={icon} size={13} />
-        {label}
-      </span>
-      {multiline ? (
-        <textarea rows={4} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
-      ) : (
-        <input
-          type={type}
-          value={value}
-          placeholder={placeholder}
-          autoCapitalize="none"
-          autoCorrect="off"
-          spellCheck={false}
-          onChange={(e) => onChange(e.target.value)}
-        />
-      )}
-    </label>
   );
 }
 
@@ -357,194 +318,195 @@ export function ProfileEditScreen() {
   const hasAvatar = !!avatarPreview;
 
   return (
-    <div className="screen-scroll pe-screen">
-      <div className="pe-content">
-        <section className="pe-card pe-avatar-card">
-          <button type="button" className="pe-avatar" onClick={() => fileInput.current?.click()}>
-            {hasAvatar ? <img src={avatarPreview} alt="" /> : <Icon name="user" size={36} />}
-            <span className="pe-avatar-overlay">
-              <Icon name="camera" size={20} />
-            </span>
+    <div className="screen-scroll set-page acc-screen">
+      <div className="acc-avatar-block">
+        <button type="button" className="acc-avatar" aria-label={t("profile.edit.changeAvatar")} onClick={() => fileInput.current?.click()}>
+          <span className="acc-avatar-img">{hasAvatar ? <img src={avatarPreview} alt="" /> : <Icon name="user" size={44} />}</span>
+          <span className="acc-avatar-badge">
+            <Icon name="camera" size={18} />
+          </span>
+        </button>
+        <input
+          ref={fileInput}
+          type="file"
+          accept="image/jpeg,image/png,image/gif,image/webp"
+          hidden
+          onChange={(e) => {
+            void pickAvatar(e.target.files?.[0]);
+            e.target.value = "";
+          }}
+        />
+        <div className="acc-avatar-links">
+          <button type="button" onClick={() => fileInput.current?.click()}>
+            {t("profile.edit.changeAvatar")}
           </button>
-          <input
-            ref={fileInput}
-            type="file"
-            accept="image/jpeg,image/png,image/gif,image/webp"
-            hidden
-            onChange={(e) => {
-              void pickAvatar(e.target.files?.[0]);
-              e.target.value = "";
-            }}
-          />
-          <div className="pe-avatar-btns">
-            <button type="button" className="is-accent" onClick={() => fileInput.current?.click()}>
-              <Icon name="upload" size={14} />
-              {t("profile.edit.changeAvatar")}
+          {hasAvatar && (
+            <button type="button" className="is-danger" onClick={dropAvatar}>
+              {t("profile.edit.removeAvatar")}
             </button>
-            {hasAvatar && (
-              <button type="button" className="is-danger" onClick={dropAvatar}>
-                <Icon name="trash-2" size={14} />
-                {t("profile.edit.removeAvatar")}
+          )}
+        </div>
+      </div>
+
+      <section className="set-group">
+        <div className="set-group-title">{t("profile.edit.username")}</div>
+        <ListField value={form.username} placeholder={t("profile.edit.username")} onChange={(v) => update({ username: v })} />
+        <ListField type="email" value={form.email} placeholder={t("profile.edit.email")} onChange={(v) => update({ email: v })} />
+      </section>
+
+      <section className="set-group">
+        <ListField multiline value={form.about} placeholder={t("profile.edit.about")} onChange={(v) => update({ about: v })} />
+      </section>
+      <ListHint>{t("settings.account.aboutHint")}</ListHint>
+
+      <section className="set-group">
+        <div className="set-group-title">{t("profile.edit.favoriteTags")}</div>
+        <ListField value={form.favorite_tags} placeholder="tag1, tag2, ..." onChange={(v) => update({ favorite_tags: v })} />
+      </section>
+      <ListHint>{t("settings.account.tagsHint")}</ListHint>
+
+      <section className="set-group">
+        <div className="set-group-title">{t("settings.account.security")}</div>
+        <button type="button" className="set-row" onClick={() => setShowBlacklist((v) => !v)}>
+          <TileIcon icon="shield" color="#e5484d" />
+          <span className="set-row-text">
+            <span className="set-row-title">{t("profile.edit.blacklist")}</span>
+            <span className="set-row-sub">{t("settings.account.blacklistSub")}</span>
+          </span>
+          <span className="set-row-trail">
+            <Icon name={showBlacklist ? "chevron-up" : "chevron-down"} size={18} />
+          </span>
+        </button>
+
+        {showBlacklist && (
+          <div className="pe-section acc-expand">
+            {blLoading ? (
+              <div className="pe-bl-loading">
+                <Spinner size={16} />
+                {t("common.loading")}
+              </div>
+            ) : blError ? (
+              <button
+                type="button"
+                className="pe-bl-retry"
+                onClick={() => {
+                  blLoaded.current = false;
+                  setBlError(false);
+                  setBlTags([]);
+                }}
+              >
+                {t("common.retry")}
               </button>
-            )}
-          </div>
-        </section>
+            ) : null}
 
-        <section className="pe-card">
-          <Field label={t("profile.edit.username")} icon="at-sign" value={form.username} onChange={(v) => update({ username: v })} />
-          <Field label={t("profile.edit.email")} icon="mail" type="email" value={form.email} onChange={(v) => update({ email: v })} />
-          <Field label={t("profile.edit.about")} icon="file-text" multiline value={form.about} onChange={(v) => update({ about: v })} />
-          <Field
-            label={t("profile.edit.favoriteTags")}
-            icon="tag"
-            placeholder="tag1, tag2, ..."
-            value={form.favorite_tags}
-            onChange={(v) => update({ favorite_tags: v })}
-          />
-        </section>
-
-        <section className="pe-card">
-          <button type="button" className="pe-toggle" onClick={() => setShowBlacklist((v) => !v)}>
-            <span className="pe-toggle-icon">
-              <Icon name="shield" size={16} />
-            </span>
-            <span className="pe-toggle-text">{t("profile.edit.blacklist")}</span>
-            <Icon name={showBlacklist ? "chevron-up" : "chevron-down"} size={20} />
-          </button>
-
-          {showBlacklist && (
-            <div className="pe-section">
-              {blLoading ? (
-                <div className="pe-bl-loading">
-                  <Spinner size={16} />
-                  {t("common.loading")}
-                </div>
-              ) : blError ? (
-                <button
-                  type="button"
-                  className="pe-bl-retry"
-                  onClick={() => {
-                    blLoaded.current = false;
-                    setBlError(false);
-                    setBlTags([]);
-                  }}
-                >
-                  {t("common.retry")}
-                </button>
-              ) : null}
-
-              <div className="pe-bl-results">
-                {blSuggestLoading ? (
-                  <div className="pe-bl-skeletons">
-                    {Array.from({ length: 5 }, (_, i) => (
-                      <span key={i} />
-                    ))}
-                  </div>
-                ) : visibleSuggest.length === 0 ? (
-                  <p className="pe-bl-hint">{blQuery.trim() ? t("common.nothingFound") : t("profile.blacklist.addPlaceholder")}</p>
-                ) : (
-                  visibleSuggest.map((it) => (
-                    <button
-                      key={it.id}
-                      type="button"
-                      className="pe-bl-suggest"
-                      onClick={() => {
-                        setBlTags((prev) => (prev.some((x) => x.id === it.id) ? prev : [...prev, it]));
-                        setBlQuery("");
-                        // Выбранный убираем сразу, список по умолчанию обновляем в фоне
-                        setBlSuggest((prev) => prev.filter((x) => x.id !== it.id));
-                        setTimeout(() => void runSuggest("", blType, true), 0);
-                      }}
-                    >
-                      <span>
-                        <b>{it.name}</b>
-                        <small>
-                          {String(it.type).toUpperCase()}  {it.count ?? 0}
-                        </small>
-                      </span>
-                      <Icon name="plus" size={18} />
-                    </button>
-                  ))
-                )}
-              </div>
-
-              <div className="pe-bl-controls">
-                <div className="pe-bl-type">
-                  <Select
-                    value={blType}
-                    options={BLACKLIST_TYPES}
-                    onChange={(v) => {
-                      setBlType(v as TagType);
-                      setBlSuggest([]);
-                    }}
-                  />
-                </div>
-                <input
-                  className="pe-bl-input"
-                  value={blQuery}
-                  disabled={blLoading}
-                  placeholder={t("profile.blacklist.addPlaceholder")}
-                  autoCapitalize="none"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  onChange={(e) => setBlQuery(e.target.value)}
-                />
-              </div>
-
-              {blTags.length === 0 ? (
-                <p className="pe-bl-hint">{t("profile.blacklist.empty")}</p>
-              ) : (
-                <div className="pe-bl-chips">
-                  {blTags.map((it) => (
-                    <button key={it.id} type="button" onClick={() => setBlTags((prev) => prev.filter((x) => x.id !== it.id))}>
-                      <span>
-                        <b>{it.name}</b>
-                        <small>{String(it.type).toUpperCase()}</small>
-                      </span>
-                      <Icon name="x" size={14} />
-                    </button>
+            <div className="pe-bl-results">
+              {blSuggestLoading ? (
+                <div className="pe-bl-skeletons">
+                  {Array.from({ length: 5 }, (_, i) => (
+                    <span key={i} />
                   ))}
                 </div>
+              ) : visibleSuggest.length === 0 ? (
+                <p className="pe-bl-hint">{blQuery.trim() ? t("common.nothingFound") : t("profile.blacklist.addPlaceholder")}</p>
+              ) : (
+                visibleSuggest.map((it) => (
+                  <button
+                    key={it.id}
+                    type="button"
+                    className="pe-bl-suggest"
+                    onClick={() => {
+                      setBlTags((prev) => (prev.some((x) => x.id === it.id) ? prev : [...prev, it]));
+                      setBlQuery("");
+                      // Выбранный убираем сразу, список по умолчанию обновляем в фоне
+                      setBlSuggest((prev) => prev.filter((x) => x.id !== it.id));
+                      setTimeout(() => void runSuggest("", blType, true), 0);
+                    }}
+                  >
+                    <span>
+                      <b>{it.name}</b>
+                      <small>
+                        {String(it.type).toUpperCase()}  {it.count ?? 0}
+                      </small>
+                    </span>
+                    <Icon name="plus" size={18} />
+                  </button>
+                ))
               )}
             </div>
-          )}
-        </section>
 
-        <section className="pe-card">
-          <button type="button" className="pe-toggle" onClick={() => setShowPasswords((v) => !v)}>
-            <span className="pe-toggle-icon">
-              <Icon name="lock" size={16} />
-            </span>
-            <span className="pe-toggle-text">{t("profile.edit.changePassword")}</span>
-            <Icon name={showPasswords ? "chevron-up" : "chevron-down"} size={20} />
-          </button>
-          {showPasswords && (
-            <div className="pe-section">
-              <Field
-                label={t("profile.edit.oldPassword")}
-                icon="key"
-                type="password"
-                value={form.old_password}
-                onChange={(v) => update({ old_password: v })}
-              />
-              <Field
-                label={t("profile.edit.newPassword")}
-                icon="lock"
-                type="password"
-                value={form.new_password1}
-                onChange={(v) => update({ new_password1: v })}
-              />
-              <Field
-                label={t("profile.edit.newPasswordAgain")}
-                icon="lock"
-                type="password"
-                value={form.new_password2}
-                onChange={(v) => update({ new_password2: v })}
+            <div className="pe-bl-controls">
+              <div className="pe-bl-type">
+                <Select
+                  value={blType}
+                  options={BLACKLIST_TYPES}
+                  onChange={(v) => {
+                    setBlType(v as TagType);
+                    setBlSuggest([]);
+                  }}
+                />
+              </div>
+              <input
+                className="pe-bl-input"
+                value={blQuery}
+                disabled={blLoading}
+                placeholder={t("profile.blacklist.addPlaceholder")}
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                onChange={(e) => setBlQuery(e.target.value)}
               />
             </div>
-          )}
-        </section>
-      </div>
+
+            {blTags.length === 0 ? (
+              <p className="pe-bl-hint">{t("profile.blacklist.empty")}</p>
+            ) : (
+              <div className="pe-bl-chips">
+                {blTags.map((it) => (
+                  <button key={it.id} type="button" onClick={() => setBlTags((prev) => prev.filter((x) => x.id !== it.id))}>
+                    <span>
+                      <b>{it.name}</b>
+                      <small>{String(it.type).toUpperCase()}</small>
+                    </span>
+                    <Icon name="x" size={14} />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        <button type="button" className="set-row" onClick={() => setShowPasswords((v) => !v)}>
+          <TileIcon icon="key" color="#3fb950" />
+          <span className="set-row-text">
+            <span className="set-row-title">{t("profile.edit.changePassword")}</span>
+            <span className="set-row-sub">{t("settings.account.passwordSub")}</span>
+          </span>
+          <span className="set-row-trail">
+            <Icon name={showPasswords ? "chevron-up" : "chevron-down"} size={18} />
+          </span>
+        </button>
+        {showPasswords && (
+          <div className="acc-expand">
+            <ListField type="password" value={form.old_password} placeholder={t("profile.edit.oldPassword")} onChange={(v) => update({ old_password: v })} />
+            <ListField type="password" value={form.new_password1} placeholder={t("profile.edit.newPassword")} onChange={(v) => update({ new_password1: v })} />
+            <ListField
+              type="password"
+              value={form.new_password2}
+              placeholder={t("profile.edit.newPasswordAgain")}
+              onChange={(v) => update({ new_password2: v })}
+            />
+          </div>
+        )}
+      </section>
+
+      <section className="set-group">
+        <button type="button" className="set-row set-row-danger" onClick={() => void signOut().then(() => navigate("/settings", { replace: true }))}>
+          <TileIcon icon="log-out" color="#e5484d" />
+          <span className="set-row-text">
+            <span className="set-row-title">{t("menu.logout")}</span>
+          </span>
+        </button>
+      </section>
 
       {isDirty && (
         <button type="button" className="pe-save" disabled={saving} onClick={() => void submit()}>

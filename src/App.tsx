@@ -6,11 +6,12 @@ import { BookScreen } from "./screens/BookScreen";
 import { ReaderScreen } from "./screens/ReaderScreen";
 import { CommentsScreen } from "./screens/CommentsScreen";
 import { DownloadedScreen, NoteScreen, SavedScreen } from "./screens/LibraryScreens";
-import { SettingsScreen } from "./screens/SettingsScreen";
+import { SettingsScreen, SettingsSectionScreen } from "./screens/SettingsScreen";
 import { TagsScreen } from "./screens/TagsScreen";
 import { FavoritesOnlineScreen } from "./screens/FavoritesOnlineScreen";
 import { ProfileScreen } from "./screens/ProfileScreen";
 import { ProfileEditScreen } from "./screens/ProfileEditScreen";
+import { MeScreen } from "./screens/MeScreen";
 import { I18nProvider } from "./i18n/I18nContext";
 import { SearchScreen } from "./screens/SearchScreen";
 import { UikitScreen } from "./screens/UikitScreen";
@@ -63,8 +64,10 @@ export default function App() {
                   <Route path="/favorites" element={<SavedScreen kind="favorites" />} />
                   <Route path="/history" element={<SavedScreen kind="history" />} />
                   <Route path="/settings" element={<SettingsScreen />} />
+                  <Route path="/settings/:section" element={<SettingsSectionScreen />} />
                   <Route path="/uikit" element={<UikitScreen />} />
                   <Route path="/downloaded" element={<DownloadedScreen />} />
+                  <Route path="/me" element={<MeScreen />} />
                   <Route path="/favorites-online" element={<FavoritesOnlineScreen />} />
                   <Route path="/profile/:id/:slug" element={<ProfileScreen />} />
                   <Route path="/profile/:id/:slug/edit" element={<ProfileEditScreen />} />
