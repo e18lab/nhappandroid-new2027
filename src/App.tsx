@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
+import { HashRouter, Route, Routes } from "react-router-dom";
 import { Shell } from "./shell/Shell";
 import { HomeScreen } from "./screens/HomeScreen";
 import { CommunityScreen } from "./screens/CommunityScreen";
@@ -14,6 +14,9 @@ import { ProfileScreen } from "./screens/ProfileScreen";
 import { ProfileEditScreen } from "./screens/ProfileEditScreen";
 import { MeScreen } from "./screens/MeScreen";
 import { I18nProvider } from "./i18n/I18nContext";
+import { RecommendationsScreen } from "./screens/RecommendationsScreen";
+import { CharactersScreen } from "./screens/CharactersScreen";
+import { ImageSearchScreen } from "./screens/ImageSearchScreen";
 import { SearchScreen } from "./screens/SearchScreen";
 import { UikitScreen } from "./screens/UikitScreen";
 import { OverlayPortalProvider, ToastProvider } from "./ui";
@@ -58,6 +61,7 @@ export default function App() {
                   <Route path="/" element={<HomeScreen />} />
                   <Route path="/explore" element={<HomeScreen />} />
                   <Route path="/search" element={<SearchScreen />} />
+                  <Route path="/image-search" element={<ImageSearchScreen />} />
                   <Route path="/tags" element={<TagsScreen />} />
                   <Route path="/book/:id" element={<BookScreen />} />
                   <Route path="/book/:id/comments" element={<CommentsScreen />} />
@@ -73,11 +77,8 @@ export default function App() {
                   <Route path="/profile/:id/:slug" element={<ProfileScreen />} />
                   <Route path="/profile/:id/:slug/edit" element={<ProfileEditScreen />} />
                   <Route path="/community" element={<CommunityScreen />} />
-                  <Route path="/characters" element={<Navigate to="/community" replace />} />
-                  <Route
-                    path="/recommendations"
-                    element={<NoteScreen titleKey="menu.recommendations" textKey="notes.recommendations" />}
-                  />
+                  <Route path="/characters" element={<CharactersScreen />} />
+                  <Route path="/recommendations" element={<RecommendationsScreen />} />
                   <Route path="/login" element={<NoteScreen titleKey="menu.login" textKey="notes.login" />} />
                   <Route path="*" element={<NoteScreen titleKey="notes.notFoundTitle" textKey="notes.notFoundText" />} />
                 </Routes>

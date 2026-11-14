@@ -15,6 +15,7 @@ import { syncUser, touchOnline } from "../api/nappi";
 import { clearLibraryAfterLogout, startCloudSync, stopCloudSync } from "./cloudSync";
 import { getDeviceId, getDeviceName } from "./device";
 import { syncOnlineFavorites } from "./onlineFavorites";
+import { resetRecommendations } from "./recommendations";
 import { removeItem } from "./storage";
 
 const ONLINE_KEYS = ["bookFavoritesOnline.v1", "@online.imported.cache", "@online.pendingFavorites.queue", "profile.me", "nh.me"];
@@ -74,6 +75,7 @@ function connectCloud(user: Me) {
 
 export async function signOut(): Promise<void> {
   clearLibraryAfterLogout();
+  resetRecommendations();
   await logout();
   for (const key of ONLINE_KEYS) removeItem(key);
   set(null);

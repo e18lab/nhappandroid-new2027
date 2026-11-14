@@ -5,7 +5,7 @@
  */
 import { useSyncExternalStore } from "react";
 import type { SortOrder } from "../api/types";
-import { KEYS, getItem, getJSON, setItem, setJSON, subscribe } from "./storage";
+import { KEYS, getItem, getJSON, setItem, setJSON, subscribe, subscribeKey } from "./storage";
 
 export type LanguageOption = "english" | "japanese" | "chinese";
 export const LANGUAGE_OPTIONS: LanguageOption[] = ["english", "japanese", "chinese"];
@@ -64,9 +64,29 @@ export function setCustomRange(query: string, label: string, fromISO: string, to
   setJSON(KEYS.dateRange, { uploaded: query, customRangeLabel: label, lastCustomFrom: fromISO, lastCustomTo: toISO });
 }
 
+const WATCHED = new Set<string>([KEYS.searchSort, KEYS.dateRange, KEYS.tagFilter, KEYS.pagesFilter]);
+
+// Чип на карточке спрашивает свой режим при каждой отрисовке — без кеша это разбор JSON на каждый чип
+let tagFiltersCache: TagFilterItem[] | null = null;
+let snapshotCache: string | null = null;
+subscribe((key) => {
+  if (key === KEYS.tagFilter) tagFiltersCache = null;
+  if (WATCHED.has(key)) snapshotCache = null;
+});
+
+/** Текущие фильтры тегов. Массив общий: только читать, для правок делать копию. */
 export function getTagFilters(): TagFilterItem[] {
+  if (tagFiltersCache) return tagFiltersCache;
   const raw = getJSON<unknown>(KEYS.tagFilter, []);
-  return Array.isArray(raw) ? (raw as TagFilterItem[]) : [];
+  tagFiltersCache = Array.isArray(raw) ? (raw as TagFilterItem[]) : [];
+  return tagFiltersCache;
+}
+
+const subscribeTagFilters = (cb: () => void) => subscribeKey(KEYS.tagFilter, cb);
+
+/** Фильтры тегов для компонента: перерисовка только при их смене (сортировка и дата не трогают). */
+export function useTagFilters(): TagFilterItem[] {
+  return useSyncExternalStore(subscribeTagFilters, getTagFilters);
 }
 
 export function getLanguage(): LanguageOption | null {
@@ -146,16 +166,14 @@ export function buildQuery(base: string): string {
   return parts.join(" ");
 }
 
-const WATCHED = new Set<string>([KEYS.searchSort, KEYS.dateRange, KEYS.tagFilter, KEYS.pagesFilter]);
-
 function snapshot(): string {
-  return [getItem(KEYS.searchSort), getItem(KEYS.dateRange), getItem(KEYS.tagFilter), getItem(KEYS.pagesFilter)].join("\u0000");
+  snapshotCache ??= [getItem(KEYS.searchSort), getItem(KEYS.dateRange), getItem(KEYS.tagFilter), getItem(KEYS.pagesFilter)].join("\u0000");
+  return snapshotCache;
 }
+
+const subscribeFilters = (cb: () => void) => subscribe((key) => WATCHED.has(key) && cb());
 
 /** Перерисовка при смене любого фильтра; возвращает «отпечаток» для зависимостей эффектов. */
 export function useBrowseFilters(): string {
-  return useSyncExternalStore(
-    (cb) => subscribe((key) => WATCHED.has(key) && cb()),
-    snapshot,
-  );
+  return useSyncExternalStore(subscribeFilters, snapshot);
 }

@@ -3,7 +3,8 @@
  * `hooks/useFavHistory.ts`, `app/read.tsx` (updateReadHistory), `app/search.tsx` (saveHist),
  * слияние для облака — `api/nhappApi/storageMerge.ts`.
  */
-import { KEYS, getJSON, setJSON } from "./storage";
+import { useSyncExternalStore } from "react";
+import { KEYS, getJSON, setJSON, subscribe, subscribeKey } from "./storage";
 
 // ─── Закладки: number[] в порядке добавления (старые → новые) ────────────────
 
@@ -16,8 +17,22 @@ export function loadFavoriteIds(): number[] {
   return parseIds(getJSON<unknown>(KEYS.favorites, []));
 }
 
+// Спрашивает каждая карточка: без кеша это разбор всего списка закладок на карточку
+let favoriteSet: Set<number> | null = null;
+subscribe((key) => {
+  if (key === KEYS.favorites) favoriteSet = null;
+});
+
 export function isFavorite(id: number): boolean {
-  return loadFavoriteIds().includes(id);
+  favoriteSet ??= new Set(loadFavoriteIds());
+  return favoriteSet.has(id);
+}
+
+const subscribeFavorites = (cb: () => void) => subscribeKey(KEYS.favorites, cb);
+
+/** В закладках ли книга; перерисовка — только когда меняется именно её состояние. */
+export function useIsFavorite(id: number): boolean {
+  return useSyncExternalStore(subscribeFavorites, () => isFavorite(id));
 }
 
 /** Переключает закладку; `next` — принудительно добавить/убрать. Возвращает новое состояние. */

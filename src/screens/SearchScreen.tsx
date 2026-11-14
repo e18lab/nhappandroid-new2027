@@ -15,14 +15,15 @@ import { isBookBlacklisted, useBlacklistSets } from "../lib/blacklist";
 import { loadSearchHistory, rememberSearch } from "../lib/library";
 import { KEYS, removeItem, setJSON } from "../lib/storage";
 import { useBookTitle } from "../lib/titleTranslations";
-import { Icon, LoadingSpinner, useToast } from "../ui";
+import { Icon, LoadingSpinner } from "../ui";
+import { useImagePicker } from "./ImageSearchScreen";
 
 const isNumericBookId = (s: string) => /^\d+$/.test(s.trim());
 
 export function SearchScreen() {
   const { t } = useI18n();
   const navigate = useNavigate();
-  const { showToast } = useToast();
+  const imagePicker = useImagePicker();
   const [params] = useSearchParams();
   const filters = useBrowseFilters();
   const [q, setQ] = useState(params.get("query") ?? "");
@@ -97,10 +98,11 @@ export function SearchScreen() {
             type="button"
             className="search-small-btn topbar-accent"
             aria-label={t("search.searchByImage")}
-            onClick={() => showToast({ title: t("search.searchByImage"), message: t("menu.comingSoon") })}
+            onClick={imagePicker.pick}
           >
             <Icon name="image" size={18} />
           </button>
+          {imagePicker.element}
         </div>
         <button type="button" className="topbar-btn topbar-accent" aria-label={t("menu.tags")} onClick={() => navigate("/tags")}>
           <Icon name="tag" size={18} />

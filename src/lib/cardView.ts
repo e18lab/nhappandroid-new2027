@@ -7,7 +7,7 @@
  * Хранится в `ui.cards.v1`; меняется сразу во всех открытых лентах.
  */
 import { useSyncExternalStore } from "react";
-import { KEYS, getJSON, setJSON, subscribe } from "./storage";
+import { KEYS, getJSON, setJSON, subscribeKey } from "./storage";
 
 export type CardViewKind = "list" | "compact" | "grid" | "classic";
 
@@ -54,10 +54,9 @@ export function setCardView(patch: { view?: CardViewKind; show?: Partial<CardSho
   setJSON(KEYS.cardView, { view: patch.view ?? cur.view, show: { ...cur.show, ...(patch.show ?? {}) } });
 }
 
+const subscribeView = (cb: () => void) => subscribeKey(KEYS.cardView, cb);
+
 /** Текущий вид карточек; компонент перерисуется, когда его поменяют в настройках. */
 export function useCardView(): CardView {
-  return useSyncExternalStore(
-    (cb) => subscribe((key) => key === KEYS.cardView && cb()),
-    read,
-  );
+  return useSyncExternalStore(subscribeView, read);
 }

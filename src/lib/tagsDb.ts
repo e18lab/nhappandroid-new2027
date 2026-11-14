@@ -71,15 +71,18 @@ export function tagById(id: number): TagItem | undefined {
 
 /** Справочник загружен (для перерисовки, когда он подъедет). */
 export function useTagsDbReady(): boolean {
-  return useSyncExternalStore(
-    (cb) => {
-      readyListeners.add(cb);
-      void loadTagsDb();
-      return () => readyListeners.delete(cb);
-    },
-    () => !!byId,
-  );
+  return useSyncExternalStore(subscribeReady, isTagsDbReady);
 }
+
+function subscribeReady(cb: () => void) {
+  readyListeners.add(cb);
+  void loadTagsDb();
+  return () => {
+    readyListeners.delete(cb);
+  };
+}
+
+const isTagsDbReady = () => !!byId;
 
 /** Тег из справочника по типу (любое число) и имени; до загрузки справочника — undefined. */
 export function findTag(type: string, name: string): TagItem | undefined {

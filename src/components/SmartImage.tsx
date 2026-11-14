@@ -16,7 +16,7 @@ export function SmartImage({
 }: {
   sources: string[];
   alt?: string;
-  fit?: "cover" | "contain";
+  fit?: "cover" | "contain" | "fill";
   maxRetries?: number;
   retryDelay?: number;
   showLoader?: boolean;

@@ -58,7 +58,8 @@ export default defineConfig(() => ({
           host,
           port: 1421,
         }
-      : undefined,
+      : // Адрес явно: на Android страница открыта с tauri.localhost, и сам Vite подключился бы туда
+        { host: "127.0.0.1" },
     watch: {
       // 3. tell Vite to ignore watching `src-tauri`
       ignored: ["**/src-tauri/**"],

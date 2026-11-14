@@ -18,21 +18,25 @@ import { getItem, setItem } from "../lib/storage";
 import { PageTabs, Pager, usePager } from "../ui";
 import { CommunityPage, useCommunityMenu } from "./CommunityScreen";
 import { FavoritesOnlineScreen } from "./FavoritesOnlineScreen";
-import { DownloadedScreen, NoteScreen, SavedScreen } from "./LibraryScreens";
+import { DownloadedScreen, SavedScreen } from "./LibraryScreens";
+import { RecommendationsScreen } from "./RecommendationsScreen";
 import { TagsScreen } from "./TagsScreen";
 
 const TAB_KEY = "ui.home.tab";
 
-const TABS: { key: string; labelKey: string; needsLogin?: boolean; desktopOnly?: boolean; render: () => ReactNode }[] = [
-  { key: "latest", labelKey: "home.tabs.latest", render: () => <CatalogFeed /> },
+/** Страница, которой не важно, открыта ли она: один и тот же элемент, и React не считает её заново при смене вкладки. */
+const page = (node: ReactNode) => () => node;
+
+const TABS: { key: string; labelKey: string; needsLogin?: boolean; desktopOnly?: boolean; render: (active: boolean) => ReactNode }[] = [
+  { key: "latest", labelKey: "home.tabs.latest", render: page(<CatalogFeed />) },
   // На телефоне сообщество — в нижней панели, на ПК её нет
-  { key: "community", labelKey: "nav.community", desktopOnly: true, render: () => <CommunityPage /> },
-  { key: "recommendations", labelKey: "menu.recommendations", render: () => <NoteScreen titleKey="menu.recommendations" textKey="notes.recommendations" /> },
-  { key: "downloaded", labelKey: "menu.downloaded", render: () => <DownloadedScreen /> },
-  { key: "favorites", labelKey: "menu.favorites", render: () => <SavedScreen kind="favorites" /> },
-  { key: "online", labelKey: "menu.favoritesOnline", needsLogin: true, render: () => <FavoritesOnlineScreen /> },
-  { key: "history", labelKey: "menu.history", render: () => <SavedScreen kind="history" /> },
-  { key: "tags", labelKey: "menu.tags", render: () => <TagsScreen /> },
+  { key: "community", labelKey: "nav.community", desktopOnly: true, render: page(<CommunityPage />) },
+  { key: "recommendations", labelKey: "menu.recommendations", render: (active) => <RecommendationsScreen active={active} /> },
+  { key: "downloaded", labelKey: "menu.downloaded", render: page(<DownloadedScreen />) },
+  { key: "favorites", labelKey: "menu.favorites", render: page(<SavedScreen kind="favorites" />) },
+  { key: "online", labelKey: "menu.favoritesOnline", needsLogin: true, render: page(<FavoritesOnlineScreen />) },
+  { key: "history", labelKey: "menu.history", render: page(<SavedScreen kind="history" />) },
+  { key: "tags", labelKey: "menu.tags", render: page(<TagsScreen />) },
 ];
 
 export function HomeScreen() {
@@ -59,7 +63,7 @@ function HomePager({ loggedIn }: { loggedIn: boolean }) {
           tabs={tabs.map((x) => ({ key: x.key, label: t(x.labelKey), menu: x.key === "community" ? communityMenu : undefined }))}
         />
       </div>
-      <Pager pager={pager} count={tabs.length} onIndexChange={(i) => setItem(TAB_KEY, tabs[i].key)} render={(i) => tabs[i].render()} />
+      <Pager pager={pager} count={tabs.length} onIndexChange={(i) => setItem(TAB_KEY, tabs[i].key)} render={(i, active) => tabs[i].render(active)} />
     </div>
   );
 }

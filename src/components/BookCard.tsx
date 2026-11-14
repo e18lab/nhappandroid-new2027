@@ -10,7 +10,7 @@ import { thumbSources } from "../api/media";
 import { useI18n } from "../i18n/I18nContext";
 import { isBookBlacklisted, useBlacklistSets } from "../lib/blacklist";
 import { useEnrichPriority } from "../lib/bookEnrich";
-import { tagMode, toggleIncludeTag, useBrowseFilters } from "../lib/browseFilters";
+import { tagMode, toggleIncludeTag, useTagFilters } from "../lib/browseFilters";
 import { useTagLabel } from "../lib/tagTranslations";
 import { useBookTitle } from "../lib/titleTranslations";
 import { Icon, Spinner } from "../ui";
@@ -37,9 +37,14 @@ const chipW = (name: string) =>
   Math.min(CHIP_MAX_W, CHIP_PAD_X + 1 + Math.ceil(name.length * (isCjk(name) ? CJK_CHAR_W : LATIN_CHAR_W)));
 const plusW = (n: number) => CHIP_PAD_X + 1 + Math.ceil((String(n).length + 1) * LATIN_CHAR_W);
 
+const dateFormats = new Map<string, Intl.DateTimeFormat>();
+
 /** «31 мар. 2026» — как date-fns `d MMM yyyy` в старом (без «г.» у русской локали). */
 export function formatShortDate(date: Date, locale: string): string {
-  const parts = new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", year: "numeric" }).formatToParts(date);
+  // Создание форматтера дорогое, а дата есть на каждой карточке
+  let format = dateFormats.get(locale);
+  if (!format) dateFormats.set(locale, (format = new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", year: "numeric" })));
+  const parts = format.formatToParts(date);
   const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
   return `${get("day")} ${get("month")} ${get("year")}`;
 }
@@ -59,7 +64,7 @@ export const BookCard = memo(function BookCard({
   useEnrichPriority(root, book.id, !book.full);
   const blacklist = useBlacklistSets();
   const hidden = useMemo(() => isBookBlacklisted(book, blacklist), [book, blacklist]);
-  useBrowseFilters();
+  useTagFilters();
   const tagLabel = useTagLabel();
   const title = useBookTitle(book);
 

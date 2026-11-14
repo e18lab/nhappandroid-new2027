@@ -176,6 +176,9 @@
   scroll-snap-stop: always;
   overflow: hidden;
 }
+/* Дальняя страница (ставит Pager): не считается и не рисуется, анимации и подгрузка на ней стоят,
+ * а прокрутка и состояние сохраняются — в отличие от display: none */
+.ax-pager-page.is-far { content-visibility: hidden; }
 
 /* ── Карточки книг (BookRow, PosterCard; вид — Настройки → Карточки) ──
  * Строка: обложка 0.7 со скруглением 16 (release_poster_corner_radius_regular), тонкая обводка
@@ -320,7 +323,8 @@
 .ax-poster-badges .ax-fact svg { color: #ff6b81; }
 .ax-poster-menu { position: absolute; top: 4px; right: 4px; }
 .ax-poster-menu .ax-row-menu { margin: 0; }
-.ax-poster-menu .ax-icon-btn { width: 34px; height: 34px; background: rgba(0, 0, 0, 0.4); color: #fff; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+/* Без размытия: на телефоне кнопка видна на каждой плитке, и прокрутка считала бы его для всех */
+.ax-poster-menu .ax-icon-btn { width: 34px; height: 34px; background: rgba(0, 0, 0, 0.55); color: #fff; }
 .ax-poster-title {
   margin: 8px 2px 0;
   display: -webkit-box;
@@ -1230,9 +1234,8 @@
 .is-desktop .ax-home-tabs {
   padding: 10px 24px 8px;
   justify-content: center;
-  background: color-mix(in srgb, var(--bg) 90%, transparent);
-  -webkit-backdrop-filter: blur(18px);
-  backdrop-filter: blur(18px);
+  /* Без размытия: под полосой во всю ширину окна постоянно едет лента, а сквозь такой фон его почти не видно */
+  background: color-mix(in srgb, var(--bg) 96%, transparent);
 }
 .is-desktop .ax-tabs { padding: 0; gap: 10px; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; border-radius: 0; }
 .is-desktop .ax-tabs-strip { height: 38px; border-radius: 0; }
