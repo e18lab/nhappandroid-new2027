@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Окно NHApp: HTTP к API nhentai и бэкенду nappi, открытие ссылок, выбор папки загрузок",
+  "description": "Окно MoeLibre: HTTP к API nhentai и бэкенду nappi, открытие ссылок, выбор папки загрузок",
   "windows": [
     "main"
   ],
@@ -13,6 +13,7 @@
     "core:window:allow-close",
     "core:window:allow-start-dragging",
     "opener:default",
+    "deep-link:default",
     {
       "identifier": "http:default",
       "allow": [
@@ -27,6 +28,15 @@
         },
         {
           "url": "https://api.mymemory.translated.net/*"
+        },
+        {
+          "url": "https://id.moelibre.cc/*"
+        },
+        {
+          "url": "https://mlnappi.moelibre.cc/*"
+        },
+        {
+          "url": "https://cloud.moelibre.cc/*"
         }
       ]
     },

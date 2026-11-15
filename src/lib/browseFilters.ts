@@ -5,6 +5,7 @@
  */
 import { useSyncExternalStore } from "react";
 import type { SortOrder } from "../api/types";
+import { useBoundValue } from "../browser/tabs";
 import { KEYS, getItem, getJSON, setItem, setJSON, subscribe, subscribeKey } from "./storage";
 
 export type LanguageOption = "english" | "japanese" | "chinese";
@@ -86,7 +87,7 @@ const subscribeTagFilters = (cb: () => void) => subscribeKey(KEYS.tagFilter, cb)
 
 /** Фильтры тегов для компонента: перерисовка только при их смене (сортировка и дата не трогают). */
 export function useTagFilters(): TagFilterItem[] {
-  return useSyncExternalStore(subscribeTagFilters, getTagFilters);
+  return useBoundValue(useSyncExternalStore(subscribeTagFilters, getTagFilters));
 }
 
 export function getLanguage(): LanguageOption | null {
@@ -175,5 +176,6 @@ const subscribeFilters = (cb: () => void) => subscribe((key) => WATCHED.has(key)
 
 /** Перерисовка при смене любого фильтра; возвращает «отпечаток» для зависимостей эффектов. */
 export function useBrowseFilters(): string {
-  return useSyncExternalStore(subscribeFilters, snapshot);
+  // В невыбранной вкладке «отпечаток» не меняется — её списки не перезагружаются от чужих фильтров
+  return useBoundValue(useSyncExternalStore(subscribeFilters, snapshot));
 }

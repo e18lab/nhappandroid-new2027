@@ -9,7 +9,21 @@ mod window_controls;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let builder = tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    // ПК: одно окно приложения. Повторный запуск (в том числе браузером по ссылке moelibre://
+    // после входа в MoeLibre ID) не открывает второе окно — ссылку получает уже открытое (deep-link)
+    #[cfg(desktop)]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+        use tauri::Manager;
+        if let Some(w) = app.get_webview_window("main") {
+            let _ = w.unminimize();
+            let _ = w.show();
+            let _ = w.set_focus();
+        }
+    }));
+    let builder = builder
+        // Возврат в приложение по ссылке moelibre://auth/callback (вход в MoeLibre ID через браузер)
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_http::init())
         // Выбор папки для загрузок на ПК (SavePathRow) и «Сохранить как» для выгрузок (save_file.rs)
@@ -55,6 +69,12 @@ pub fn run() {
     let embedded = context.set_assets(Box::new(ota::NoAssets));
     context.set_assets(Box::new(ota::OtaAssets { embedded }));
     let builder = builder.setup(|app| {
+        // Схема moelibre:// в системе: установщик прописывает её сам, здесь — для запуска без установки (dev)
+        #[cfg(any(windows, target_os = "linux"))]
+        {
+            use tauri_plugin_deep_link::DeepLinkExt;
+            let _ = app.deep_link().register_all();
+        }
         if let Some(cfg) = app.config().app.windows.iter().find(|w| w.label == "main").cloned() {
             tauri::WebviewWindowBuilder::from_config(app.handle(), &cfg)?.build()?;
         }

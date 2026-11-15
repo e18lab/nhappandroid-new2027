@@ -442,7 +442,7 @@
  * «назад» в Android/Telegram); свайп пальцем делает то же самое вслед за пальцем (swipeBack.ts).
  * Между разделами нижней панели содержимое листается вбок на всю ширину за 180 мс (screen_tab из APK),
  * шапка при этом не двигается: слои прозрачные, едет только `.content`, шапка нового раздела сверху. */
-.ax-stack { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+.ax-stack { position: relative; flex: 1; min-height: 0; overflow: hidden; overflow: clip; } /* clip — фокус в поле не прокручивает стопку экранов вбок */
 .ax-layer { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--bg); }
 .ax-layer::after {
   content: "";
@@ -577,38 +577,39 @@
 }
 .set-row:active,
 .set-switch:active { background: rgba(255, 255, 255, 0.05); }
-/* Объёмная иконка: градиент от светлого к тёмному оттенку `--c`, блик сверху (::before),
- * внутренняя тень снизу и мягкая тень под плашкой; сам значок — с тенью. */
+/* Объёмная иконка — «клавиша»: лицевая грань цвета `--c` с лёгким переходом сверху вниз, под ней тёмный
+ * бортик (толщина плашки) и короткая тень на «полу». Без глянцевого блика и цветного свечения:
+ * свет только по верхней кромке и мягкое пятно в верхнем левом углу (::before).
+ * Значок вдавлен — чёткая тень тёмного оттенка того же цвета, без размытия. */
 .set-row-icon {
   --c: #888;
+  --c-face: color-mix(in srgb, var(--c) 86%, #fff);
+  --c-deep: color-mix(in srgb, var(--c) 62%, #000);
   position: relative;
   flex: none;
   width: 40px;
   height: 40px;
   display: grid;
   place-items: center;
-  overflow: hidden;
   border-radius: 12px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--c) 72%, #fff) 0%, var(--c) 48%, color-mix(in srgb, var(--c) 78%, #000) 100%);
+  background: linear-gradient(180deg, var(--c-face) 0%, var(--c) 62%, color-mix(in srgb, var(--c) 90%, #000) 100%);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.45),
-    inset 0 -2px 3px rgba(0, 0, 0, 0.22),
-    0 2px 5px color-mix(in srgb, var(--c) 35%, transparent),
-    0 1px 2px rgba(0, 0, 0, 0.35);
+    inset 0 1px 0 rgba(255, 255, 255, 0.32),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.18),
+    0 3px 0 var(--c-deep),
+    0 6px 8px -3px rgba(0, 0, 0, 0.55);
   color: #fff;
+  translate: 0 -1.5px;
 }
 .set-row-icon::before {
   content: "";
   position: absolute;
-  left: -20%;
-  right: -20%;
-  top: -55%;
-  height: 90%;
-  border-radius: 50%;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.38), rgba(255, 255, 255, 0));
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(110% 75% at 25% 0%, rgba(255, 255, 255, 0.2), transparent 62%);
   pointer-events: none;
 }
-.set-row-icon svg { position: relative; filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.35)); }
+.set-row-icon svg { position: relative; stroke-width: 1.9; filter: drop-shadow(0 1.5px 0 var(--c-deep)); }
 .set-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .set-row-title { color: var(--txt); font-size: 17px; font-weight: 500; line-height: 22px; }
 .set-row-sub { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--sub); font-size: 14px; line-height: 18px; }
@@ -923,6 +924,15 @@
   animation: ax-window-in 260ms var(--ax-tg) both;
 }
 .has-nav .ax-window { bottom: calc(var(--ax-nav-space) - 8px); }
+/* ПК: окно — модалка на всё окно приложения: затемнение накрывает и заголовок окна (вкладки, адрес),
+ * панель по центру во всю высоту окна. `.main` без transform, поэтому fixed считается от окна. */
+.ax-desk .ax-window-host { position: fixed; z-index: 100; }
+/* Снизу без отступа: панель стоит на нижнем краю окна, скруглена только сверху */
+.ax-desk .ax-window { top: 32px; bottom: 0; width: min(680px, calc(100% - 64px)); border-radius: 28px 28px 0 0; }
+/* Аккаунт: кнопка «Сохранить» — в потоке под полями (липнет к низу при прокрутке), без запаса под ней */
+.ax-desk .ax-window .acc-screen { padding-bottom: 16px; }
+.ax-desk .ax-window .acc-screen .pe-save { margin: 12px auto 0; bottom: 16px; }
+.ax-desk .ax-window .tg-page { padding-bottom: 16px; }
 .ax-window .ax-layer { background: var(--bg); }
 .ax-window-host.is-closing { pointer-events: none; }
 .ax-window-host.is-closing .ax-window-dim { animation: ax-dim-hide 200ms var(--ax-ease) both; }
@@ -1140,10 +1150,9 @@
  * Окно без рамки: сверху заголовок окна, экраны — в скруглённой панели под ним. */
 .app-reader-body { position: relative; height: 100%; }
 .ax-desk {
-  --dk-title: 48px;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: var(--dk-title) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   padding: 0;
   background: #0b0b0b;
 }
@@ -1158,65 +1167,113 @@
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
 }
 .ax-desk .top-chrome { display: none; }
+/* Вкладки браузера (browser/DesktopBrowser.tsx): у каждой своя панель в одной и той же ячейке сетки,
+ * невыбранные остаются в DOM, но не рисуются и не считаются (content-visibility), прокрутка сохраняется */
+.ax-desk > .main,
+.ax-desk > .app-reader-body { grid-row: 2; grid-column: 1; }
+.ax-desk > .is-hidden-tab { visibility: hidden; pointer-events: none; content-visibility: hidden; }
+.ax-desk > .dk-tab-reader { margin: 0 8px 8px; overflow: hidden; border-radius: 18px; background: #000; }
 .ax-desk.app-reader { background: #000; }
 .ax-desk > .app-reader-body { height: auto; min-height: 0; overflow: hidden; }
 
 /* Заголовок окна */
-.dk-titlebar { height: var(--dk-title); padding-left: 14px; display: flex; align-items: center; gap: 8px; user-select: none; -webkit-user-select: none; }
-.dk-brand { flex: none; display: flex; align-items: center; gap: 8px; padding-right: 6px; }
-.dk-brand img { width: 26px; height: 26px; border-radius: 8px; pointer-events: none; }
-.dk-brand b { color: var(--title); font-size: 15px; font-weight: 700; }
-.dk-brand span { color: var(--ax-muted); font-size: 12px; }
+.dk-titlebar { display: flex; flex-direction: column; user-select: none; -webkit-user-select: none; }
+/* Три строки, как у Steam: верхняя (логотип, поиск по центру, кнопки окна), вкладки, адрес */
+.dk-row { display: flex; align-items: center; gap: 8px; padding: 0 16px; min-width: 0; }
+.dk-row-top { height: 40px; padding-right: 0; }
+.dk-row-nav { height: 48px; padding-left: 6px; }
+.dk-row-addr { height: 36px; padding-left: 10px; padding-bottom: 6px; gap: 8px; }
+.dk-row-top .dk-btn { width: 32px; height: 32px; }
+.dk-row-top .dk-avatar { width: 26px; height: 26px; }
+.dk-btn-sm { width: 28px; height: 28px; border-radius: 8px; color: var(--ax-muted); }
+/* Адрес страницы — поле, как адресная строка браузера: по нажатию копируется, стрелка открывает в браузере */
+.dk-url {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 28px;
+  padding: 0 3px 0 0;
+  display: flex;
+  align-items: center;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.035);
+  transition: background-color 0.15s;
+}
+.dk-url:hover { background: rgba(255, 255, 255, 0.06); }
+.dk-url button { border: 0; outline: none; background: none; font: inherit; }
+.dk-url-text {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ax-muted);
+  font-size: 12.5px !important;
+  text-align: left;
+}
+.dk-url-text svg { flex: none; opacity: 0.8; }
+.dk-url-text span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.dk-url:hover .dk-url-text { color: var(--sub); }
+.dk-url-open { flex: none; width: 24px; height: 22px; display: grid; place-items: center; border-radius: 6px; color: var(--ax-muted); }
+.dk-url-open:hover { background: rgba(255, 255, 255, 0.08); color: var(--txt); }
+/* Экран только в приложении: вместо замка — логотип приложения, адрес приглушён, поле то же */
+.dk-url-logo { flex: none; width: 14px; height: 14px; border-radius: 4px; pointer-events: none; }
+.dk-url.is-local .dk-url-text { cursor: default; }
+.dk-url.is-local .dk-url-text span { opacity: 0.75; }
 .dk-histnav { flex: none; display: flex; gap: 2px; }
 .dk-btn { width: 34px; height: 34px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 10px; background: none; color: var(--sub); transition: background-color 0.15s, color 0.15s; }
 .dk-btn:hover { background: rgba(255, 255, 255, 0.07); color: var(--txt); }
 .dk-drag { flex: 1 1 0; align-self: stretch; min-width: 12px; }
-/* Поиск и фильтры — одна «таблетка»: строка поиска и справа круглая кнопка фильтров */
+/* Поиск — поле рядом с адресом, в том же виде (высота, скругление, фон); внутри справа маленькие
+ * кнопки тегов, фильтров и «случайной книги» */
 .dk-searchbox {
-  flex: 0 1 500px;
+  flex: 0 1 380px;
   min-width: 200px;
-  height: 36px;
-  padding-right: 3px;
+  height: 28px;
+  padding-right: 2px;
   display: flex;
   align-items: center;
-  border-radius: 999px;
-  background: var(--ax-surface-2);
+  gap: 1px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.035);
+  transition: background-color 0.15s;
 }
-.dk-searchbox { gap: 4px; }
-.dk-round { flex: none; border-radius: 50%; background: var(--ax-surface-2); }
+.dk-searchbox:hover { background: rgba(255, 255, 255, 0.06); }
 .dk-searchbox .ui-dd,
 .dk-searchbox .ui-dd-anchor { flex: none; display: flex; align-self: center; }
 .dk-filter {
-  width: 30px;
-  height: 30px;
+  width: 24px;
+  height: 22px;
   padding: 0;
   display: grid;
   place-items: center;
   border: 0;
-  border-radius: 50%;
-  background: var(--bg);
-  color: var(--sub);
+  border-radius: 6px;
+  background: none;
+  color: var(--ax-muted);
   transition: color 0.15s, background-color 0.15s;
 }
-.dk-filter:hover { color: var(--txt); background: color-mix(in srgb, var(--bg) 85%, #fff); }
+.dk-filter:hover { color: var(--txt); background: rgba(255, 255, 255, 0.08); }
 .dk-search {
   flex: 1;
   min-width: 0;
   height: 100%;
-  padding: 0 6px 0 14px;
+  padding: 0 6px 0 10px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   border: 0;
-  border-radius: 999px;
+  outline: none;
+  border-radius: 8px;
   background: none;
   color: var(--ax-muted);
-  font-size: 14px;
+  font-size: 12.5px;
   text-align: left;
 }
 .dk-search:hover { color: var(--sub); }
 .dk-search span { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.dk-search kbd { flex: none; padding: 3px 8px; border-radius: 999px; background: var(--bg); box-shadow: inset 0 0 0 1px var(--ax-line); color: var(--ax-muted); font: inherit; font-size: 11px; }
+.dk-search kbd { flex: none; padding: 1px 6px; border-radius: 5px; background: rgba(255, 255, 255, 0.05); color: var(--ax-muted); font: inherit; font-size: 10.5px; }
 .dk-actions { flex: none; display: flex; align-items: center; gap: 4px; }
 .dk-actions .topbar-btn { width: 34px; height: 34px; border-radius: 10px; color: var(--sub); }
 .dk-actions .topbar-btn:hover { background: rgba(255, 255, 255, 0.07); }
@@ -1224,7 +1281,7 @@
 .dk-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .dk-avatar:hover { box-shadow: 0 0 0 2px var(--ax-selected); }
 .dk-window { flex: none; align-self: stretch; margin-left: 6px; display: flex; }
-.dk-window button { width: 46px; padding: 0; display: grid; place-items: center; border: 0; background: none; color: var(--sub); transition: background-color 0.12s, color 0.12s; }
+.dk-window button { width: 44px; padding: 0; display: grid; place-items: center; border: 0; background: none; color: var(--sub); transition: background-color 0.12s, color 0.12s; }
 .dk-window button:hover { background: rgba(255, 255, 255, 0.08); color: var(--txt); }
 .dk-window button.is-close:hover { background: #e81123; color: #fff; }
 
@@ -1252,6 +1309,144 @@
 }
 .is-desktop .ax-tabs-btn { width: 38px; height: 38px; border-radius: 50%; background: var(--ax-surface-2); color: var(--sub); }
 .is-desktop .ax-tabs-btn:hover { color: var(--txt); }
+
+/* Вкладки главной в заголовке окна (как разделы Steam): крупные, подчёркивание под подписью.
+ * Полоса вкладок там (DesktopChrome.tsx), поэтому на самой главной сверху отступа под неё нет. */
+.is-desktop .ax-home { --ax-tabs-space: 8px; }
+.dk-tabs { flex: 0 1 auto; min-width: 0; align-self: stretch; margin-left: 8px; display: flex; }
+.dk-tabs .ax-tabs { min-width: 0; height: 100%; }
+.dk-tabs .ax-tabs-strip,
+.dk-tabs .ax-tab { height: 48px; }
+.dk-tabs .ax-tab { min-width: 0; padding: 0 11px; font-size: 16.5px; font-weight: 600; letter-spacing: -0.01em; }
+.dk-tabs .ax-tab:focus-visible { outline: none; color: var(--txt); }
+.dk-tabs .ax-tabs-pill { bottom: 6px; height: 3px; }
+/* Внутренняя шапка экрана на ПК: «назад», поиск, фильтры, теги и облако уже в заголовке окна —
+ * остаётся заголовок страницы. В окнах (настройки, профиль) «назад» нужна для переходов внутри окна. */
+.is-desktop .topbar-right { display: none; }
+.is-desktop .ax-stack > .ax-layer > .topbar > .topbar-btn:first-child { display: none; }
+.is-desktop .ax-stack > .ax-layer > .topbar { padding-left: 24px; }
+.is-desktop .ax-stack > .ax-layer > .topbar .topbar-title { margin: 0; font-size: 18px; }
+.dk-tabs .ax-tabs.is-idle .ax-tabs-pill { opacity: 0; transition: none; }
+/* Вкладки браузера в верхней строке: как вкладки Chrome, но «пилюлями» кита. Ширина делится поровну
+ * и сжимается, когда вкладок много; у выбранной — фон, у выбранной и под курсором — крестик. */
+.dk-btabs { position: relative; flex: 0 1 auto; min-width: 0; height: 100%; margin-left: -6px; display: flex; align-items: center; gap: 2px; overflow: hidden; }
+.dk-btab {
+  flex: 0 1 200px;
+  min-width: 44px;
+  height: 30px;
+  padding: 0 4px 0 7px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 9px;
+  color: var(--ax-muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: default;
+  outline: none;
+  user-select: none;
+  touch-action: none;
+  transition: background-color 0.15s, color 0.15s, transform 0.16s var(--ax-tg);
+}
+.dk-btab:hover { background: rgba(255, 255, 255, 0.05); color: var(--sub); }
+/* Закреплённая — только значок */
+.dk-btab.is-pinned { flex: none; min-width: 0; width: 36px; padding: 0; justify-content: center; }
+/* Перетаскиваемая — поверх соседей, без задержки за мышью */
+.dk-btab.is-drag { position: relative; z-index: 2; transition: background-color 0.15s, color 0.15s; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45); }
+.dk-btabs.is-dragging .dk-btab { cursor: grabbing; }
+.dk-btabs.is-dragging .dk-btab:not(.is-drag):hover { background: none; }
+.dk-btab.is-active { background: var(--ax-surface-2); color: var(--title); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05); }
+.dk-btab:focus-visible { box-shadow: 0 0 0 2px var(--ax-selected); }
+.dk-btab-title { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.dk-btab-close { flex: none; width: 20px; height: 20px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 6px; background: none; color: inherit; opacity: 0; transition: opacity 0.12s, background-color 0.12s; }
+.dk-btab:hover .dk-btab-close,
+.dk-btab.is-active .dk-btab-close { opacity: 0.75; }
+.dk-btab-close:hover { opacity: 1 !important; background: rgba(255, 255, 255, 0.1); }
+.dk-btab-new { flex: none; width: 30px; height: 30px; margin-left: 2px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 9px; background: none; color: var(--ax-muted); transition: background-color 0.15s, color 0.15s; }
+.dk-btab-new:hover,
+.dk-btab-new.is-open { background: rgba(255, 255, 255, 0.06); color: var(--txt); }
+/* Значок ресурса: буквы на плашке его цвета, с лёгким объёмом как у плиток кита */
+.dk-resmark {
+  flex: none;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 3px;
+  display: grid;
+  place-items: center;
+  border-radius: 5px;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  text-transform: uppercase;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), inset 0 -1px 0 rgba(0, 0, 0, 0.25);
+}
+/* Меню вкладки (правая кнопка): компактное, группы разделены чертой, справа — сочетание клавиш */
+.dk-ctx {
+  position: fixed;
+  z-index: 1000;
+  min-width: 240px;
+  padding: 6px;
+  border-radius: 14px;
+  background: var(--ax-surface-2);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45), 0 0 0 1px var(--ax-line);
+  animation: ax-tabmenu-in 0.12s var(--ax-ease);
+}
+.dk-ctx-group + .dk-ctx-group { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--ax-line); }
+.dk-ctx-item {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: var(--txt);
+  font-size: 13.5px;
+  text-align: left;
+}
+.dk-ctx-item > svg { flex: none; color: var(--sub); }
+.dk-ctx-item > span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dk-ctx-item kbd { flex: none; color: var(--ax-muted); font: inherit; font-size: 11.5px; }
+.dk-ctx-item:hover:not(:disabled) { background: var(--ax-surface); }
+.dk-ctx-item:disabled { opacity: 0.4; cursor: default; }
+.dk-respicker .ax-tabmenu-item { align-items: center; }
+.dk-respicker .dk-resmark { min-width: 30px; height: 30px; border-radius: 9px; font-size: 11px; }
+.dk-respicker .ax-tabmenu-item:disabled { opacity: 0.5; cursor: default; }
+.dk-respicker .ax-tabmenu-item:disabled:hover { background: none; }
+.dk-soon { flex: none; margin-left: auto; padding: 2px 8px; border-radius: 999px; background: rgba(255, 255, 255, 0.06); color: var(--ax-muted); font-size: 11px; font-weight: 600; }
+
+/* Профиль и настройки справа в строке вкладок — в том же виде, подчёркнуты, пока открыто их окно */
+.dk-xtabs { flex: none; align-self: stretch; display: flex; }
+.dk-xtab {
+  position: relative;
+  height: 100%;
+  padding: 0 11px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  outline: none;
+  background: none;
+  color: var(--ax-muted);
+  font-size: 16.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  transition: color 0.15s;
+}
+.dk-xtab:hover,
+.dk-xtab.is-active { color: var(--title); }
+.dk-xtab.is-active::after { content: ""; position: absolute; left: 11px; right: 11px; bottom: 6px; height: 3px; background: var(--ax-on-selected); }
+.dk-xtab > span:last-child { max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+.dk-xtab-avatar { flex: none; width: 24px; height: 24px; display: grid; place-items: center; overflow: hidden; border-radius: 50%; background: var(--ax-surface-2); color: var(--sub); }
+.dk-xtab-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.dk-xtab:hover .dk-xtab-avatar { box-shadow: 0 0 0 2px var(--ax-selected); }
+@media (max-width: 1280px) { .dk-xtab > span:last-child { display: none; } }
+@media (max-width: 1360px) { .dk-search kbd { display: none; } }
 
 /* Содержимое не растягивается на весь монитор */
 .is-desktop .ax-posters,
@@ -1950,3 +2145,829 @@ button.cm-pv:not(.is-checked) { opacity: 0.55; }
 /* Редактор коллекции */
 .tg-editor { padding: 4px 0 8px; display: flex; flex-direction: column; gap: 12px; }
 .tg-editor .cm-search { flex: none; }
+
+/* ── MoeLibre ID: окно входа (shell/MlLoginModal.tsx) ──
+ * Каркас — окно входа nhentai (.lg-*); сверху знак MoeLibre ID, кнопки провайдеров в их цветах. */
+.ml-login-logo { height: 30px; width: auto; margin-right: auto; padding-left: 4px; }
+.ml-login-body { display: flex; flex-direction: column; gap: 14px; padding-top: 10px; }
+.ml-login-title { margin: 0; color: var(--title); font-size: 22px; font-weight: 700; }
+.ml-login-sub { margin: -6px 0 6px; color: var(--sub); font-size: 14px; line-height: 20px; }
+.ml-login-buttons { display: flex; flex-direction: column; gap: 10px; }
+.ml-login-btn {
+  height: 52px;
+  padding: 0 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  border: 0;
+  border-radius: 16px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.15s, transform 0.1s;
+}
+.ml-login-btn:hover { filter: brightness(1.06); }
+.ml-login-btn:active { transform: scale(0.98); }
+.ml-login-btn.is-google { background: #fff; color: #1f1f1f; }
+.ml-login-btn.is-telegram { background: #2aabee; color: #fff; }
+.ml-login-wait { padding: 18px 8px 6px; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
+.ml-login-wait b { color: var(--title); font-size: 16px; }
+.ml-login-wait span { color: var(--sub); font-size: 13px; }
+.ml-login-wait-actions { margin-top: 8px; display: flex; gap: 8px; }
+.ml-login-retry { margin-left: auto; padding: 0; border: 0; background: none; color: inherit; font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
+
+/* ── MoeLibre ID: аккаунт (screens/MlAccountScreen.tsx) ── */
+/* ── MoeLibre ID: экран аккаунта ──────────────────────────────────────────────
+   Язык знака ML: «лепесток» — острые верхний левый и нижний правый углы, скруглённые остальные
+   (border-radius: 0 R 0 R), фирменный красный #FF4040, белая обводка. */
+.ml-acc {
+  --ml-red: #ff4040;
+  --ml-leaf: 0 22px 0 22px;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 8px 16px 28px;
+}
+.ml-acc-guest { padding: 56px 24px; display: flex; flex-direction: column; align-items: center; gap: 18px; text-align: center; }
+.ml-acc-guest-logo { height: 64px; }
+.ml-acc-guest p { max-width: 420px; margin: 0; color: var(--sub); line-height: 21px; }
+
+/* Шапка: аватар-лепесток, имя (нажать — изменить), дата и способы входа */
+.ml-hero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 22px;
+  overflow: hidden;
+  border-radius: 0 28px 0 28px;
+  background:
+    radial-gradient(120% 140% at 0% 0%, rgba(255, 64, 64, 0.22), transparent 55%),
+    var(--ax-surface);
+  box-shadow: inset 0 0 0 1px rgba(255, 64, 64, 0.18);
+}
+.ml-hero-mark {
+  position: absolute;
+  right: -18px;
+  bottom: -26px;
+  width: 210px;
+  opacity: 0.07;
+  pointer-events: none;
+}
+.ml-hero-avatar {
+  position: relative;
+  flex: none;
+  width: 92px;
+  height: 92px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: var(--ml-leaf);
+  background: var(--ml-red);
+  box-shadow: 0 0 0 3px var(--ax-surface), 0 0 0 5px var(--ml-red);
+  margin: 5px;
+  color: #fff;
+  font-size: 38px;
+  font-weight: 800;
+}
+.ml-hero-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.ml-hero-body { position: relative; min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.ml-hero-name {
+  align-self: flex-start;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 -8px;
+  padding: 2px 8px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--title);
+  font: inherit;
+  cursor: text;
+}
+.ml-hero-name b { overflow: hidden; font-size: 26px; font-weight: 800; letter-spacing: -0.01em; text-overflow: ellipsis; white-space: nowrap; }
+.ml-hero-name svg { flex: none; opacity: 0; color: var(--sub); transition: opacity 0.15s; }
+.ml-hero-name:hover { background: rgba(255, 255, 255, 0.05); }
+.ml-hero-name:hover svg, .ml-hero-name:focus-visible svg { opacity: 1; }
+.is-touch .ml-hero-name svg { opacity: 0.6; }
+.ml-hero-input {
+  width: 100%;
+  height: 38px;
+  margin: 0 -8px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 10px;
+  outline: 2px solid var(--ml-red);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--title);
+  font: inherit;
+  font-size: 22px;
+  font-weight: 800;
+}
+.ml-hero-since { color: var(--sub); font-size: 13px; }
+.ml-hero-chips { margin-top: 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.ml-chip {
+  max-width: 100%;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 11px 0 9px;
+  border-radius: 0 10px 0 10px;
+  background: color-mix(in srgb, var(--c) 18%, transparent);
+  color: var(--title);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.ml-chip svg { color: var(--c); }
+.ml-chip .provider-mark { flex: none; }
+.ml-chip.is-add:not(:hover) .provider-mark { opacity: 0.85; }
+/* Имя и почта способа входа — только при наведении (чип плавно раскрывается) */
+.ml-chip em { max-width: 0; margin-left: -6px; overflow: hidden; color: var(--sub); font-style: normal; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; opacity: 0; transition: max-width 0.2s ease, margin 0.2s ease, opacity 0.15s; }
+.ml-chip:hover em, .ml-chip:focus-within em { max-width: 220px; margin-left: 0; opacity: 1; }
+
+/* Заголовки секций */
+.ml-sec-head { margin: 26px 4px 10px; display: flex; align-items: baseline; gap: 10px; }
+.ml-sec-head h3 { margin: 0; color: var(--title); font-size: 17px; font-weight: 800; }
+.ml-sec-head span { color: var(--ax-muted, var(--sub)); font-size: 13px; font-weight: 600; }
+.ml-note { margin: 10px 6px 0; color: var(--sub); font-size: 12.5px; line-height: 18px; }
+
+/* Ресурсы: плитки, у привязанного — цветная обводка и галочка на знаке */
+.ml-res-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+.ml-res {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  border-radius: 0 20px 0 20px;
+  background: var(--ax-surface);
+}
+.ml-res.is-linked { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--c) 55%, transparent); background: linear-gradient(90deg, color-mix(in srgb, var(--c) 12%, var(--ax-surface)), var(--ax-surface) 60%); }
+.ml-res.is-soon { opacity: 0.55; }
+.ml-res-mark {
+  position: relative;
+  flex: none;
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border-radius: 0 15px 0 15px;
+  background: var(--c);
+  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.2);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.ml-res.is-soon .ml-res-mark { filter: saturate(0.4); }
+.ml-res-tick {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #35c26b;
+  box-shadow: 0 0 0 2.5px var(--ax-surface);
+  color: #fff;
+}
+.ml-res-text { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.ml-res-text b { color: var(--title); font-size: 15px; }
+.ml-res-text span { overflow: hidden; color: var(--sub); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Кнопки ML */
+.ml-btn {
+  flex: none;
+  height: 34px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 0 12px 0 12px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: filter 0.15s, transform 0.1s;
+}
+.ml-btn:hover { filter: brightness(1.1); }
+.ml-btn:active { transform: scale(0.97); }
+.ml-btn.is-primary { background: var(--ml-red, #ff4040); color: #fff; box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.18); }
+.ml-btn.is-ghost { background: var(--ax-surface-2); color: var(--txt); }
+.ml-btn.is-danger { background: #e5484d; color: #fff; }
+.ml-btn.is-big { height: 46px; padding: 0 28px; border-radius: 0 16px 0 16px; font-size: 15px; }
+
+/* Устройства */
+.ml-panel { overflow: hidden; border-radius: 0 20px 0 20px; background: var(--ax-surface); }
+.ml-dev { display: flex; align-items: center; gap: 14px; padding: 12px 14px; }
+.ml-dev + .ml-dev { border-top: 1px solid rgba(255, 255, 255, 0.05); }
+.ml-dev-icon {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 0 13px 0 13px;
+  background: var(--ax-surface-2);
+  color: var(--sub);
+}
+.ml-dev.is-current .ml-dev-icon { background: color-mix(in srgb, #ff4040 20%, transparent); color: #ff6a6a; }
+.ml-dev-text { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.ml-dev-text b { overflow: hidden; color: var(--title); font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
+.ml-dev-text span { color: var(--sub); font-size: 13px; }
+.ml-dev.is-current .ml-dev-text span { color: #ff6a6a; font-weight: 600; }
+.ml-acc-loading { padding: 16px; display: flex; justify-content: center; }
+.ml-acc-error { padding: 14px 18px; color: #ff8a80; font-size: 14px; }
+
+/* Выход */
+.ml-signout {
+  width: 100%;
+  height: 48px;
+  margin-top: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 1.5px solid rgba(255, 64, 64, 0.35);
+  border-radius: 0 16px 0 16px;
+  background: none;
+  color: #ff6b6b;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.ml-signout:hover { background: rgba(255, 64, 64, 0.08); }
+.ml-signout.is-armed { border-color: #e5484d; background: #e5484d; color: #fff; }
+
+/* Способы входа: × — убрать (в два нажатия), пунктирные — привязать ещё один */
+.ml-chip-x {
+  height: 20px;
+  min-width: 20px;
+  margin: 0 -5px 0 2px;
+  padding: 0 4px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 0 7px 0 7px;
+  background: transparent;
+  color: var(--sub);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.ml-chip-x:hover { background: rgba(229, 72, 77, 0.2); color: #ff6b6b; }
+.ml-chip.is-armed { background: rgba(229, 72, 77, 0.18); }
+.ml-chip.is-armed .ml-chip-x { background: #e5484d; color: #fff; }
+.ml-chip.is-add {
+  border: 1.5px dashed color-mix(in srgb, var(--c) 55%, transparent);
+  background: transparent;
+  color: var(--sub);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.ml-chip.is-add:hover { background: color-mix(in srgb, var(--c) 14%, transparent); color: var(--title); }
+.ml-chip.is-add.is-waiting { border-style: solid; color: var(--title); }
+
+/* Аватар: нажать — загрузить свой; крестик — вернуть аватар способа входа */
+.ml-hero-avatar-wrap { position: relative; flex: none; }
+.ml-hero-avatar { padding: 0; border: 0; font: inherit; cursor: pointer; }
+.ml-hero-avatar-over {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.ml-hero-avatar:hover .ml-hero-avatar-over, .ml-hero-avatar:focus-visible .ml-hero-avatar-over, .ml-hero-avatar:disabled .ml-hero-avatar-over { opacity: 1; }
+.ml-hero-avatar-reset {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--ax-surface-2);
+  box-shadow: 0 0 0 3px var(--ax-surface);
+  color: var(--txt);
+  cursor: pointer;
+}
+.ml-hero-avatar-reset:hover { background: #e5484d; color: #fff; }
+
+/* Ресурс с аккаунтами: шапка ресурса, список аккаунтов, «добавить» */
+.ml-resbox { margin-bottom: 10px; overflow: hidden; border-radius: 0 22px 0 22px; background: var(--ax-surface); }
+.ml-resbox.is-linked { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--c) 45%, transparent); background: linear-gradient(180deg, color-mix(in srgb, var(--c) 10%, var(--ax-surface)), var(--ax-surface) 90px); }
+.ml-resbox-head { display: flex; align-items: center; gap: 14px; padding: 14px; }
+.ml-accs { margin: 0 10px; display: flex; flex-direction: column; gap: 4px; }
+.ml-acc-item { display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 10px; border-radius: 0 14px 0 14px; }
+.ml-acc-item:hover { background: rgba(255, 255, 255, 0.03); }
+.ml-acc-item.is-here { background: color-mix(in srgb, var(--c) 12%, transparent); }
+.ml-acc-ava {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 0 12px 0 12px;
+  background: color-mix(in srgb, var(--c) 35%, var(--ax-surface-2));
+  color: #fff;
+  font-size: 15px;
+  font-weight: 800;
+}
+.ml-acc-ava img { width: 100%; height: 100%; object-fit: cover; }
+.ml-acc-item.is-here .ml-acc-ava { box-shadow: 0 0 0 2px var(--c); }
+.ml-acc-text { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 1px; }
+.ml-acc-text b { overflow: hidden; color: var(--title); font-size: 14.5px; text-overflow: ellipsis; white-space: nowrap; }
+.ml-acc-text span { overflow: hidden; color: var(--sub); font-size: 12.5px; text-overflow: ellipsis; white-space: nowrap; }
+.ml-acc-item.is-here .ml-acc-text span { color: color-mix(in srgb, var(--c) 70%, #fff); font-weight: 600; }
+.ml-acc-item.is-pending .ml-acc-text span { color: var(--sub); font-weight: 500; }
+.ml-add {
+  width: calc(100% - 20px);
+  height: 40px;
+  margin: 6px 10px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1.5px dashed rgba(255, 255, 255, 0.14);
+  border-radius: 0 14px 0 14px;
+  background: none;
+  color: var(--sub);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.ml-add:hover { border-color: color-mix(in srgb, var(--c) 60%, transparent); color: var(--title); }
+.ml-btn.is-soft { background: color-mix(in srgb, var(--c, #ff4040) 22%, transparent); color: var(--title); }
+.ml-btn.is-icon { width: 34px; padding: 0; display: grid; place-items: center; background: transparent; color: var(--sub); }
+.ml-btn.is-icon:hover { background: rgba(229, 72, 77, 0.15); color: #ff6b6b; filter: none; }
+
+@media (max-width: 520px) {
+  .ml-hero { flex-direction: column; align-items: flex-start; gap: 14px; padding: 18px; }
+  .ml-hero-avatar { width: 76px; height: 76px; font-size: 32px; }
+  .ml-hero-name b { font-size: 22px; }
+  .ml-res-grid { grid-template-columns: 1fr; }
+}
+.dk-xtab-avatar b { color: #fff; font-size: 12px; font-weight: 800; }
+.dk-xtab-avatar:has(b) { background: #ff4040; }
+
+/* Аккаунт MoeLibre в верхней строке заголовка окна (ПК) */
+.dk-mlacc {
+  height: 30px;
+  margin: 0 4px;
+  padding: 0 10px 0 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 0 12px 0 12px;
+  background: transparent;
+  color: var(--txt);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+.dk-mlacc:hover, .dk-mlacc.is-active { background: var(--ax-surface-2); }
+.dk-mlacc > span:last-child { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dk-mlacc-ava { position: relative; flex: none; display: grid; }
+.dk-mlacc .dk-xtab-avatar { width: 22px; height: 22px; border-radius: 0 8px 0 8px; }
+.dk-mlacc-dot { position: absolute; right: -2px; bottom: -2px; width: 9px; height: 9px; border-radius: 50%; background: #eab308; box-shadow: 0 0 0 2px var(--ax-bg, #111); }
+.dk-mlacc-dot.is-online { background: #22c55e; }
+@media (max-width: 900px) { .dk-mlacc > span:last-child { display: none; } }
+
+/* Облако в профиле MoeLibre */
+.ml-cloud { overflow: hidden; border-radius: 0 22px 0 22px; background: var(--ax-surface); }
+.ml-cloud-head { display: flex; align-items: center; gap: 14px; padding: 14px; }
+.ml-cloud-icon {
+  position: relative;
+  flex: none;
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border-radius: 0 15px 0 15px;
+  background: color-mix(in srgb, #ff4040 18%, var(--ax-surface-2));
+  color: #ff6a6a;
+}
+.ml-cloud.is-off .ml-cloud-icon { background: var(--ax-surface-2); color: var(--sub); }
+.ml-cloud-icon i { position: absolute; right: -3px; bottom: -3px; width: 13px; height: 13px; border-radius: 50%; box-shadow: 0 0 0 3px var(--ax-surface); }
+.ml-cloud-text { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.ml-cloud-text b { color: var(--title); font-size: 15px; }
+.ml-cloud-text span { overflow: hidden; color: var(--sub); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.ml-cloud-last { margin: -4px 14px 10px 74px; color: var(--sub); font-size: 12.5px; }
+.ml-cloud-links { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; border-top: 1px solid rgba(255, 255, 255, 0.05); background: rgba(255, 255, 255, 0.05); }
+.ml-cloud-link {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 14px;
+  border: 0;
+  background: var(--ax-surface);
+  color: var(--sub);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ml-cloud-link:hover { background: color-mix(in srgb, #ff4040 6%, var(--ax-surface)); color: var(--title); }
+.ml-cloud-link > span { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 1px; }
+.ml-cloud-link b { color: var(--title); font-size: 14px; }
+.ml-cloud-link span span { overflow: hidden; font-size: 12.5px; text-overflow: ellipsis; white-space: nowrap; }
+.ml-btn:disabled { opacity: 0.7; cursor: default; }
+.ml-page-lead { margin: 4px 6px 14px; color: var(--sub); font-size: 13.5px; line-height: 20px; }
+.ml-empty { padding: 22px 16px; color: var(--sub); font-size: 14px; text-align: center; }
+.ml-dev.is-off .ml-dev-icon, .ml-dev.is-off .ml-dev-text { opacity: 0.5; }
+.ml-live-dot { flex: none; width: 9px; height: 9px; margin-right: 6px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.15); }
+
+/* Переключатель в стиле ML */
+.ml-switch {
+  position: relative;
+  flex: none;
+  width: 46px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 0 10px 0 10px;
+  background: var(--ax-surface-2);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.ml-switch i {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 18px;
+  height: 18px;
+  border-radius: 0 7px 0 7px;
+  background: var(--sub);
+  transition: transform 0.18s, background 0.15s;
+}
+.ml-switch.is-on { background: #ff4040; }
+.ml-switch.is-on i { transform: translateX(20px); background: #fff; }
+@media (max-width: 520px) {
+  .ml-cloud-links { grid-template-columns: 1fr; }
+  .ml-cloud-last { margin-left: 14px; }
+}
+
+/* Облако MoeLibre: включение, перенос, управление */
+.ml-cloud-text span.is-wrap, .ml-dev-text span.is-wrap, .ml-res-text span.is-wrap { white-space: normal; text-overflow: clip; }
+.ml-cloud.is-disabled .ml-cloud-head { align-items: center; }
+.ml-cloud-links.is-3 { grid-template-columns: repeat(3, 1fr); }
+.ml-cloud-last.is-error { color: #ff8a80; }
+.ml-cloud-banner {
+  width: calc(100% - 28px);
+  margin: 0 14px 12px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1.5px solid rgba(255, 64, 64, 0.35);
+  border-radius: 0 12px 0 12px;
+  background: rgba(255, 64, 64, 0.08);
+  color: var(--title);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.ml-cloud-banner span { flex: 1; }
+.ml-cloud-banner svg:first-child { color: #ff6a6a; }
+.ml-cloud-icon.is-big { width: 64px; height: 64px; border-radius: 0 20px 0 20px; }
+.ml-setup-hero { padding: 18px 8px 4px; display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; }
+.ml-setup-hero h2 { margin: 6px 0 0; color: var(--title); font-size: 22px; font-weight: 800; }
+.ml-setup-hero p { max-width: 520px; margin: 0; color: var(--sub); font-size: 14px; line-height: 21px; }
+.ml-warn {
+  margin: 18px 0 16px;
+  padding: 14px 16px;
+  display: flex;
+  gap: 12px;
+  border-radius: 0 18px 0 18px;
+  background: color-mix(in srgb, #eab308 10%, var(--ax-surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #eab308 30%, transparent);
+  color: var(--txt);
+}
+.ml-warn > svg { flex: none; margin-top: 1px; color: #eab308; }
+.ml-warn b { color: var(--title); font-size: 14.5px; }
+.ml-warn ul { margin: 6px 0 0; padding-left: 18px; color: var(--sub); font-size: 13px; line-height: 19px; }
+.ml-btn.is-wide { width: 100%; display: flex; align-items: center; justify-content: center; }
+.ml-import { margin-bottom: 10px; overflow: hidden; border-radius: 0 20px 0 20px; background: var(--ax-surface); }
+.ml-import-head { display: flex; align-items: center; gap: 14px; padding: 14px; }
+.ml-import-head > svg { color: #35c26b; }
+.ml-import-actions { display: flex; gap: 8px; padding: 0 14px 14px 74px; }
+.ml-manage {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ml-manage + .ml-manage { border-top: 1px solid rgba(255, 255, 255, 0.05); }
+.ml-manage:hover { background: rgba(255, 255, 255, 0.03); }
+.ml-manage:disabled { cursor: default; opacity: 0.7; }
+.ml-manage.is-danger .ml-dev-icon { background: rgba(229, 72, 77, 0.15); color: #ff6b6b; }
+.ml-manage.is-danger .ml-dev-text b { color: #ff6b6b; }
+.ml-manage.is-armed { background: rgba(229, 72, 77, 0.14); }
+.ml-manage.is-armed .ml-dev-text b { color: #ff6b6b; }
+@media (max-width: 760px) { .ml-cloud-links.is-3 { grid-template-columns: 1fr; } }
+
+/* Аккаунт nhentai вкладки: кнопка и меню */
+.nh-ava { flex: none; display: grid; place-items: center; overflow: hidden; border-radius: 0 9px 0 9px; background: color-mix(in srgb, #ed2553 40%, var(--ax-surface-2)); color: #fff; font-weight: 800; }
+.nh-ava img { width: 100%; height: 100%; object-fit: cover; }
+.tab-acc-btn { display: inline-flex; align-items: center; gap: 8px; border: 0; background: transparent; color: var(--txt); font: inherit; cursor: pointer; }
+.tab-acc-btn .tab-acc-name { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+.tab-acc-btn > svg { color: var(--sub); transition: transform 0.15s; }
+.tab-acc-btn.is-open > svg { transform: rotate(180deg); }
+.tab-acc-menu {
+  position: fixed;
+  z-index: 3000;
+  width: 290px;
+  max-height: min(520px, calc(100vh - 80px));
+  overflow-y: auto;
+  padding: 6px;
+  border-radius: 0 18px 0 18px;
+  background: var(--ax-surface, #1e1e1e);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  animation: tab-acc-in 0.14s ease-out;
+}
+@keyframes tab-acc-in { from { opacity: 0; transform: translateY(-4px); } }
+.tab-acc-head { padding: 8px 10px 6px; color: var(--sub); font-size: 12px; font-weight: 700; }
+.tab-acc-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 0 12px 0 12px;
+  background: transparent;
+  color: var(--txt);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.tab-acc-item:hover { background: rgba(255, 255, 255, 0.05); }
+.tab-acc-item.is-current { background: rgba(237, 37, 83, 0.12); }
+.tab-acc-item > svg { flex: none; color: #ff6a8a; }
+.tab-acc-text { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 1px; }
+.tab-acc-text b { overflow: hidden; color: var(--title); font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.tab-acc-text span { overflow: hidden; color: var(--sub); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.tab-acc-icon { flex: none; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 0 9px 0 9px; background: var(--ax-surface-2); color: var(--sub); }
+.tab-acc-sep { height: 1px; margin: 6px 4px; background: rgba(255, 255, 255, 0.06); }
+.acc-actions { flex: none; display: flex; align-items: center; gap: 6px; }
+@media (max-width: 560px) {
+  .ml-acc-item { flex-wrap: wrap; }
+  .acc-actions { width: 100%; justify-content: flex-end; }
+}
+
+/* Телефон: вкладки и аккаунт вкладки в шапке */
+.tabs-btn span {
+  min-width: 22px;
+  height: 22px;
+  padding: 0 4px;
+  display: grid;
+  place-items: center;
+  border: 2px solid currentColor;
+  border-radius: 0 7px 0 7px;
+  font-size: 11.5px;
+  font-weight: 800;
+  line-height: 1;
+}
+.ax-acc-btn { padding: 0; }
+.ax-acc-btn .nh-ava { box-shadow: 0 0 0 2px rgba(237, 37, 83, 0.6); }
+.tabs-screen { padding: 12px 12px 120px; }
+.tabs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.tabs-card { position: relative; min-height: 132px; overflow: hidden; border-radius: 0 18px 0 18px; background: var(--ax-surface); }
+.tabs-card.is-active { box-shadow: inset 0 0 0 2px #ff4040; }
+.tabs-card-body {
+  width: 100%;
+  height: 100%;
+  min-height: 132px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.tabs-card-top { display: flex; align-items: center; gap: 8px; padding-right: 26px; }
+.tabs-card-res { color: var(--sub); font-size: 12px; font-weight: 700; }
+.tabs-card-title { flex: 1; display: -webkit-box; overflow: hidden; color: var(--title); font-size: 14px; line-height: 19px; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.tabs-card-acc { display: flex; align-items: center; gap: 6px; color: var(--sub); font-size: 12px; }
+.tabs-card-acc span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tabs-card-x { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; display: grid; place-items: center; border: 0; border-radius: 50%; background: rgba(255, 255, 255, 0.06); color: var(--sub); cursor: pointer; }
+.tabs-card.is-new { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; border: 1.5px dashed rgba(255, 255, 255, 0.16); background: transparent; color: var(--sub); font: inherit; font-weight: 700; cursor: pointer; }
+
+/* ПК: «Профиль» в строке разделов — профиль аккаунта nhentai этой вкладки */
+.dk-profile-tab {
+  flex: none;
+  position: relative;
+  height: 48px;
+  padding: 0 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  color: var(--sub);
+  font: inherit;
+  font-size: 16.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+}
+.dk-profile-tab:hover { color: var(--txt); }
+.dk-profile-tab.is-active { color: var(--title); }
+.dk-profile-tab.is-active::after { content: ""; position: absolute; left: 11px; right: 11px; bottom: 6px; height: 3px; border-radius: 3px; background: var(--title); }
+.dk-profile-tab .nh-ava { border-radius: 50%; }
+
+/* Выбор аккаунта для новой вкладки (ПК — в меню «+», телефон — лист снизу) */
+.nt-accs { display: flex; flex-direction: column; gap: 2px; min-width: 260px; }
+.nt-acc {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 0 12px 0 12px;
+  background: transparent;
+  color: var(--txt);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.nt-acc:hover { background: rgba(255, 255, 255, 0.05); }
+.nt-acc.is-current { background: rgba(237, 37, 83, 0.1); }
+.nt-acc-text { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 1px; }
+.nt-acc-text b { overflow: hidden; color: var(--title); font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.nt-acc-text span { overflow: hidden; color: var(--sub); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.nt-acc-icon { flex: none; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 0 9px 0 9px; background: var(--ax-surface-2); color: var(--sub); }
+.dk-respicker-back { display: flex; align-items: center; gap: 6px; width: 100%; border: 0; background: transparent; font: inherit; text-align: left; cursor: pointer; }
+.dk-respicker .ax-tabmenu-item > svg { margin-left: auto; color: var(--sub); }
+.nt-sheet-host { position: fixed; inset: 0; z-index: 3000; display: flex; align-items: flex-end; background: rgba(0, 0, 0, 0.45); animation: nt-fade 0.15s ease-out; }
+.nt-sheet { width: 100%; max-height: 75vh; overflow-y: auto; padding: 14px 10px calc(14px + env(safe-area-inset-bottom)); border-radius: 0 24px 0 0; background: var(--ax-surface); animation: nt-up 0.2s ease-out; }
+.nt-sheet-title { padding: 2px 10px 10px; color: var(--title); font-size: 16px; font-weight: 800; }
+@keyframes nt-fade { from { opacity: 0; } }
+@keyframes nt-up { from { transform: translateY(30px); opacity: 0.5; } }
+
+/* Значок ресурса на вкладке с аватаром её аккаунта */
+.dk-btab-mark { position: relative; flex: none; display: grid; }
+.dk-btab-acc { position: absolute; right: -5px; bottom: -4px; border-radius: 50% !important; box-shadow: 0 0 0 2px var(--ax-bg, #111); }
+
+/* ПК: настройки рядом с аккаунтом MoeLibre */
+.dk-settings-btn { width: 32px; height: 30px; margin-right: 4px; display: grid; place-items: center; border-radius: 0 10px 0 10px; color: var(--sub); }
+.dk-settings-btn:hover, .dk-settings-btn.is-active { background: var(--ax-surface-2); color: var(--txt); }
+
+/* Телефон: настройки рядом с логотипом */
+.ax-header-settings { margin-left: -4px; }
+
+/* ПК: поле поиска в заголовке окна и панель подсказок */
+.dk-search { cursor: text; }
+.dk-search input { flex: 1; min-width: 0; height: 100%; padding: 0; border: 0; outline: none; background: none; color: var(--txt); font: inherit; font-size: 12.5px; }
+.dk-search input::placeholder { color: var(--ax-muted); }
+.dk-searchbox:focus-within { background: rgba(255, 255, 255, 0.07); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12); }
+.dk-search-clear { flex: none; width: 20px; height: 20px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: rgba(255, 255, 255, 0.08); color: var(--sub); cursor: pointer; }
+.dk-search-panel {
+  position: fixed;
+  z-index: 3000;
+  max-height: min(560px, calc(100vh - 140px));
+  overflow-y: auto;
+  padding: 6px;
+  border-radius: 0 16px 0 16px;
+  background: var(--ax-surface, #1e1e1e);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  animation: tab-acc-in 0.12s ease-out;
+}
+.dk-sp-row {
+  width: 100%;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 0 10px 0 10px;
+  background: transparent;
+  color: var(--txt);
+  font: inherit;
+  font-size: 13.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.dk-sp-row.is-sel { background: rgba(255, 255, 255, 0.06); }
+.dk-sp-row kbd { flex: none; padding: 1px 6px; border-radius: 5px; background: rgba(255, 255, 255, 0.06); color: var(--sub); font: inherit; font-size: 11px; }
+.dk-sp-icon { flex: none; width: 22px; display: grid; place-items: center; color: var(--sub); }
+.dk-sp-text { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dk-sp-text b { overflow: hidden; color: var(--title); font-size: 13.5px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.dk-sp-text span { color: var(--sub); font-size: 12px; }
+.dk-sp-row.is-book { padding-top: 5px; padding-bottom: 5px; }
+.dk-sp-thumb { flex: none; width: 34px; height: 46px; overflow: hidden; border-radius: 0 6px 0 6px; background: var(--ax-surface-2); }
+.dk-sp-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.dk-sp-x { flex: none; width: 24px; height: 24px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--sub); cursor: pointer; opacity: 0; }
+.dk-sp-row:hover .dk-sp-x, .dk-sp-row.is-sel .dk-sp-x { opacity: 1; }
+.dk-sp-x:hover { background: rgba(255, 255, 255, 0.08); }
+.dk-sp-loading { padding: 10px; display: flex; justify-content: center; }
+.dk-sp-note { padding: 8px 12px; color: var(--sub); font-size: 12.5px; }
+
+/* Телефон: поиск — поле и результаты на одной странице */
+.m-search .search-top { gap: 6px; padding-left: 12px; }
+.m-search-results { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.m-search-results > * { flex: 1; min-height: 0; }
+.m-search-open {
+  margin: 6px 12px 0;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  border-radius: 0 14px 0 14px;
+  background: rgba(255, 64, 64, 0.1);
+  color: var(--title);
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.m-search-open span { flex: 1; }
+
+/* Телефон: страница поиска в стиле разделов (шапка, большое поле-«лепесток», недавние — чипами) */
+.msr { display: flex; flex-direction: column; background: var(--bg); }
+.msr-field {
+  flex: none;
+  height: 52px;
+  margin: 2px 16px 12px;
+  padding: 0 6px 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 0 18px 0 18px;
+  background: var(--ax-surface);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  transition: box-shadow 0.15s, background-color 0.15s;
+}
+.msr-field:focus-within { background: var(--ax-surface-2); box-shadow: inset 0 0 0 1.5px rgba(255, 64, 64, 0.45); }
+.msr-field-icon { flex: none; color: var(--sub); }
+.msr-field input { flex: 1; min-width: 0; height: 100%; padding: 0; border: 0; outline: none; background: none; color: var(--title); font: inherit; font-size: 16px; }
+.msr-field input::placeholder { color: var(--sub); }
+.msr-field-btn { flex: none; width: 40px; height: 40px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 0 12px 0 12px; background: transparent; color: var(--sub); cursor: pointer; }
+.msr-field-btn.is-accent { color: var(--icon); }
+.msr-field-btn:active { background: rgba(255, 255, 255, 0.06); }
+.msr-open {
+  flex: none;
+  margin: 0 16px 12px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 0;
+  border-radius: 0 16px 0 16px;
+  background: color-mix(in srgb, #ff4040 12%, var(--ax-surface));
+  color: var(--sub);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.msr-open-icon { flex: none; width: 40px; height: 40px; display: grid; place-items: center; border-radius: 0 12px 0 12px; background: #ff4040; color: #fff; }
+.msr-open-text { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 1px; }
+.msr-open-text b { color: var(--title); font-size: 15px; }
+.msr-open-text span { font-size: 12.5px; }
+.msr-body { padding: 4px 16px 120px; }
+.msr-section-head { margin: 4px 0 12px; display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.msr-section-head h2 { margin: 0; color: var(--title); font-size: 17px; font-weight: 800; }
+.msr-section-head button { padding: 4px 0; border: 0; background: none; color: var(--sub); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.msr-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.msr-chip { max-width: 100%; height: 38px; display: inline-flex; align-items: center; overflow: hidden; border-radius: 0 12px 0 12px; background: var(--ax-surface); }
+.msr-chip:active { background: var(--ax-surface-2); }
+.msr-chip-text { min-width: 0; height: 100%; padding: 0 2px 0 14px; overflow: hidden; border: 0; background: none; color: var(--txt); font: inherit; font-size: 14px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.msr-chip-x { flex: none; width: 32px; height: 100%; display: grid; place-items: center; padding: 0; border: 0; background: none; color: var(--sub); cursor: pointer; }
+.msr-empty { padding: 56px 24px; display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; }
+.msr-empty-icon { width: 64px; height: 64px; display: grid; place-items: center; border-radius: 0 20px 0 20px; background: var(--ax-surface); color: var(--sub); }
+.msr-empty p { max-width: 260px; margin: 0; color: var(--sub); font-size: 14px; line-height: 20px; }

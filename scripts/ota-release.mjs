@@ -31,5 +31,5 @@ try {
   exists = false;
 }
 if (exists) gh("release", "upload", tag, "--repo", REPO, "--clobber", ...assets);
-else gh("release", "create", tag, "--repo", REPO, "--title", `NHApp ${manifest.version}`, "--notes", "", "--latest", ...assets);
+else gh("release", "create", tag, "--repo", REPO, "--title", `MoeLibre ${manifest.version}`, "--notes", "", "--latest", ...assets);
 console.log(`${tag}: ${assets.length} файлов → https://github.com/${REPO}/releases/tag/${tag}`);

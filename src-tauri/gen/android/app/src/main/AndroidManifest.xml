@@ -25,6 +25,13 @@
                 <!-- AndroidTV support -->
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
+            <!-- Возврат из браузера после входа в MoeLibre ID: moelibre://auth/callback?code=… (plugin deep-link) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="moelibre" android:host="auth" />
+            </intent-filter>
         </activity>
 
         <provider

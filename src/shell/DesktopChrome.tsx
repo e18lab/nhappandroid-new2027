@@ -1,97 +1,270 @@
 /**
- * Каркас ПК-версии (как AnixApp на ПК, в стиле нашего кита): окно без системной рамки.
- * Сверху заголовок окна — логотип и версия, «назад / вперёд / обновить», у поиска (Ctrl+K) слева «главная»,
- * внутри справа теги и фильтры, за ним «случайная книга»;
- * справа облако, аватар, настройки и кнопки окна (свернуть, развернуть, закрыть). Заголовок — область
- * перетаскивания окна. Боковой панели нет — разделы (персонажи, закладки, история…) вкладками главной.
- * Содержимое лежит в скруглённой панели под заголовком.
+ * Заголовок окна ПК-версии (в стиле нашего кита, раскладка как у Steam / браузера): окно без системной рамки.
+ * Стоит вне роутеров вкладок: всё, что зависит от страницы, берёт роутер выбранной вкладки (`useActiveRouter`).
+ * Три строки:
+ *  1) вкладки браузера (`browser/TabStrip.tsx`) и «+» — выбор ресурса для новой вкладки;
+ *     справа обновление, облако и кнопки окна (свернуть, развернуть, закрыть);
+ *  2) крупные вкладки главной (Новое, Сообщество, Рекомендации, библиотека…), справа — профиль (аватар и ник) и настройки;
+ *  3) «назад / вперёд / перезагрузить вкладку», адрес текущей страницы на сайте и справа поле поиска (Ctrl+K)
+ *     с кнопками тегов, фильтров и «случайной книги».
+ * Заголовок — область перетаскивания окна. Боковой панели нет. Содержимое лежит в скруглённой панели под заголовком.
  */
-import { useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
-import { version } from "../../package.json";
+import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
+import { NH_HOST } from "../api/client";
 import { getRandomGalleryId } from "../api/galleries";
 import logo from "../assets/logo.png";
-import { avatarUrl } from "../components/CommentCard";
+import { BrowserTabStrip } from "../browser/TabStrip";
+import { getActiveTabId, reloadTab, splitPath, useActiveRouter, useActiveTabId, useTabs } from "../browser/tabs";
 import { useI18n } from "../i18n/I18nContext";
+import { buildV2Query } from "../api/search";
+import { getPagesQuery, getSort, getTagFilters, getUploaded, useBrowseFilters } from "../lib/browseFilters";
 import { inTauri } from "../lib/downloads";
-import { ownProfileRoute, useMe } from "../lib/session";
-import { Icon } from "../ui";
+import { useMe } from "../lib/session";
+import { getItem, setItem, subscribe } from "../lib/storage";
+import { useCommunityMenu } from "../screens/CommunityScreen";
+import { HOME_TAB_KEY, homeTabs, useDeskPager, type HomePagerState } from "../screens/homeTabs";
+import { Icon, PageTabs } from "../ui";
 import { FilterButton } from "./AppHeader";
-import { CloudButton } from "./CloudButton";
+import { useCloudState } from "../lib/cloudSync";
+import { NhAvatar } from "./TabAccount";
+import { DeskSearch } from "./DeskSearch";
 import { openLogin } from "./LoginModal";
+import { ownProfileRoute } from "../lib/session";
+import { openMlLogin } from "./MlLoginModal";
+import { useMl } from "../lib/mlid";
 import { UpdateButton } from "./UpdateButton";
+import { isWindowRoute, WIDE_QUERY } from "./windowRoutes";
 
 
 export function DesktopTitleBar() {
   const { t } = useI18n();
-  const navigate = useNavigate();
-  const { pathname } = useLocation();
+  const { navigate, location } = useActiveRouter();
+  const { pathname } = location;
   const random = useRandomBook();
-  const me = useMe();
-  const own = ownProfileRoute(me);
-  const avatar = me?.avatar_url ? avatarUrl(me.avatar_url) : "";
+  // Профиль справа — аккаунт MoeLibre ID (аккаунт nhentai привязывается к нему)
+  const { account: ml } = useMl();
+  const cloud = useCloudState();
 
-  // Ctrl+K (⌘K) — поиск
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        navigate("/search");
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [navigate]);
 
   return (
     <header className="dk-titlebar" data-tauri-drag-region>
-      <div className="dk-brand" data-tauri-drag-region>
-        <img src={logo} alt="" />
-        <b data-tauri-drag-region>NHApp</b>
-        <span data-tauri-drag-region>v{version}</span>
+      {/* 1. Вкладки браузера — свои кнопки и кнопки окна */}
+      <div className="dk-row dk-row-top" data-tauri-drag-region>
+        <BrowserTabStrip />
+        <div className="dk-drag" data-tauri-drag-region />
+        <div className="dk-actions">
+          <UpdateButton />
+          {/* Аккаунт MoeLibre — в самом верху, у кнопок окна; облако — в его профиле */}
+          <button
+            type="button"
+            className={pathname.startsWith("/mlid") ? "dk-mlacc is-active" : "dk-mlacc"}
+            title={ml ? t("mlid.account") : t("mlid.title")}
+            onClick={() => (ml ? navigate("/mlid") : openMlLogin())}
+          >
+            <span className="dk-mlacc-ava">
+              <span className="dk-xtab-avatar">
+                {ml?.avatar_url ? <img src={ml.avatar_url} alt="" referrerPolicy="no-referrer" /> : ml ? <b>{(ml.display_name || "M").charAt(0).toUpperCase()}</b> : <Icon name="user" size={14} />}
+              </span>
+              {/* Точка облака: зелёная — на связи, жёлтая — подключается */}
+              {ml && cloud.enabled && <i className={`dk-mlacc-dot is-${cloud.status}`} aria-hidden />}
+            </span>
+            <span>{ml ? ml.display_name || "MoeLibre" : t("mlid.signIn")}</span>
+          </button>
+          {/* Настройки приложения — рядом с аккаунтом MoeLibre */}
+          <button
+            type="button"
+            className={pathname.startsWith("/settings") ? "dk-btn dk-settings-btn is-active" : "dk-btn dk-settings-btn"}
+            title={t("menu.settings")}
+            aria-label={t("menu.settings")}
+            onClick={() => navigate("/settings")}
+          >
+            <Icon name="settings" size={17} />
+          </button>
+        </div>
+        {inTauri() && <WindowControls />}
       </div>
-      <div className="dk-histnav">
-        <button type="button" className="dk-btn" aria-label={t("common.back")} onClick={() => navigate(-1)}>
-          <Icon name="arrow-left" size={18} />
-        </button>
-        <button type="button" className="dk-btn" aria-label={t("common.nextPage")} onClick={() => navigate(1)}>
-          <Icon name="arrow-right" size={18} />
-        </button>
-        <button type="button" className="dk-btn" aria-label={t("common.retry")} onClick={() => window.location.reload()}>
-          <Icon name="refresh-cw" size={17} />
-        </button>
+      {/* 2. Крупные вкладки на всю строку */}
+      <div className="dk-row dk-row-nav" data-tauri-drag-region>
+        <DeskTabs />
+        <div className="dk-drag" data-tauri-drag-region />
       </div>
-      <div className="dk-drag" data-tauri-drag-region />
-      <button type="button" className="dk-btn dk-round" aria-label={t("nav.home")} onClick={() => pathname !== "/" && navigate("/")}>
-        <Icon name="home" size={18} />
-      </button>
-      <div className="dk-searchbox">
-        <button type="button" className="dk-search" onClick={() => navigate("/search")}>
-          <Icon name="search" size={17} />
-          <span>{t("desk.search")}</span>
-          <kbd>Ctrl+K</kbd>
-        </button>
-        <button type="button" className="dk-filter" aria-label={t("menu.tags")} onClick={() => navigate("/tags")}>
-          <Icon name="tag" size={16} />
-        </button>
-        <FilterButton className="dk-filter" size={17} />
-      </div>
-      <button type="button" className="dk-btn dk-round" aria-label={t("settings.hub.randomSub")} onClick={() => void random()}>
-        <Icon name="shuffle" size={18} />
-      </button>
-      <div className="dk-drag" data-tauri-drag-region />
-      <div className="dk-actions">
-        <UpdateButton />
-        {me && <CloudButton />}
-        <button type="button" className="dk-avatar" aria-label={t("nav.profile")} onClick={() => (own ? navigate(own) : openLogin())}>
-          {avatar ? <img src={avatar} alt="" /> : <Icon name="user" size={18} />}
-        </button>
-        <button type="button" className="dk-btn" aria-label={t("menu.settings")} onClick={() => navigate("/settings")}>
-          <Icon name="settings" size={19} />
-        </button>
-      </div>
-      {inTauri() && <WindowControls />}
+      {/* 3. Назад / вперёд / обновить — адрес страницы — поиск с тегами, фильтрами и «случайной книгой» */}
+      <AddressBar>
+        <div className="dk-searchbox">
+          <DeskSearch />
+          <button type="button" className="dk-filter" aria-label={t("menu.tags")} title={t("menu.tags")} onClick={() => navigate("/tags")}>
+            <Icon name="tag" size={14} />
+          </button>
+          <FilterButton className="dk-filter" size={15} />
+          <button type="button" className="dk-filter" aria-label={t("settings.hub.randomSub")} title={t("settings.hub.randomSub")} onClick={() => void random()}>
+            <Icon name="shuffle" size={14} />
+          </button>
+        </div>
+      </AddressBar>
     </header>
+  );
+}
+
+/**
+ * Поиск на сайте с тем же запросом, что уходит в API: текст, страницы, включённые и исключённые теги
+ * (`tag:x -artist:"y z"`), дата загрузки, плюс сортировка. Без запроса и по дате — главная сайта.
+ * Пробелы — `+`, двоеточия не кодируются (как в адресах сайта); кавычки, `<`, `>` и прочее — кодируются.
+ */
+function webSearchUrl(text: string): string {
+  // Тот же запрос, что собирает лента (CatalogFeed → galleryBrowse): текст + страницы, включения, исключения, дата
+  const tags = getTagFilters();
+  const q = buildV2Query(
+    [text.trim(), getPagesQuery()].filter(Boolean).join(" "),
+    tags.filter((f) => f.mode !== "exclude"),
+    tags.filter((f) => f.mode === "exclude"),
+    getUploaded(),
+  ).trim();
+  const sort = getSort();
+  if (!q && sort === "date") return `${NH_HOST}/`;
+  const enc = encodeURIComponent(q || "*").replace(/%20/g, "+").replace(/%3A/gi, ":");
+  return `${NH_HOST}/search/?q=${enc}${sort !== "date" ? `&sort=${sort}` : ""}`;
+}
+
+/**
+ * Адрес экрана, который сейчас открыт. Окно поверх экрана (настройки, профиль, теги) адрес не меняет —
+ * пока оно открыто, возвращается адрес экрана под ним.
+ */
+function usePageLocation(): { pathname: string; search: string } {
+  const { location } = useActiveRouter();
+  const tabs = useTabs();
+  const activeId = useActiveTabId();
+  if (!isWindowRoute(location.pathname) || !window.matchMedia(WIDE_QUERY).matches) return location;
+  // Окна поверх экрана адрес вкладки не меняют — там адрес экрана под окном
+  return splitPath(tabs.find((t) => t.id === activeId)?.path ?? "/");
+}
+
+
+/** Ссылка на ту же страницу на сайте; `null` — у экрана нет страницы на сайте (загруженное, история…). */
+function webUrl(pathname: string, search: string, homeTab: string): string | null {
+  const params = new URLSearchParams(search);
+  const query = params.get("query")?.trim();
+  let m: RegExpMatchArray | null;
+  if ((pathname === "/" || pathname === "/explore") && query) return webSearchUrl(query);
+  if ((m = pathname.match(/^\/(?:book|read)\/(\d+)/))) return `${NH_HOST}/g/${m[1]}/`;
+  if ((m = pathname.match(/^\/profile\/(\d+)\/([^/]+)/))) return `${NH_HOST}/users/${m[1]}/${m[2]}/`;
+  if (pathname === "/tags") return `${NH_HOST}/tags/`;
+  if (pathname === "/favorites-online") return `${NH_HOST}/favorites/`;
+  if (pathname === "/search") return `${NH_HOST}/search/`;
+  if (pathname === "/") {
+    if (homeTab === "latest") return webSearchUrl("");
+    if (homeTab === "online") return `${NH_HOST}/favorites/`;
+    if (homeTab === "tags") return `${NH_HOST}/tags/`;
+  }
+  return null;
+}
+
+/**
+ * Адресная строка, как у Steam: обновить, замок и адрес страницы на сайте. Нажатие по адресу копирует его,
+ * стрелка справа открывает страницу в браузере. Для экранов, которых на сайте нет, — адрес внутри приложения.
+ */
+function AddressBar({ children }: { children?: ReactNode }) {
+  const { t } = useI18n();
+  const { navigate } = useActiveRouter();
+  const { pathname, search } = usePageLocation();
+  const homeTab = useSyncExternalStore((cb) => subscribe((key) => key === HOME_TAB_KEY && cb()), () => getItem(HOME_TAB_KEY) ?? "latest");
+  // Фильтры (теги, страницы, дата, сортировка) меняют адрес поиска — перерисовка при их смене
+  useBrowseFilters();
+  const url = webUrl(pathname, search, homeTab);
+  const local = `nhapp:/${pathname === "/" ? `/${homeTab}` : pathname}`;
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => setCopied(false), [url]);
+
+  const copy = () => {
+    if (!url) return;
+    void navigator.clipboard?.writeText(url).then(() => {
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    });
+  };
+
+  return (
+    <div className="dk-row dk-row-addr" data-tauri-drag-region>
+      <div className="dk-histnav">
+        <button type="button" className="dk-btn dk-btn-sm" aria-label={t("common.back")} onClick={() => navigate(-1)}>
+          <Icon name="arrow-left" size={16} />
+        </button>
+        <button type="button" className="dk-btn dk-btn-sm" aria-label={t("common.nextPage")} onClick={() => navigate(1)}>
+          <Icon name="arrow-right" size={16} />
+        </button>
+        <button type="button" className="dk-btn dk-btn-sm" aria-label={t("common.retry")} onClick={() => reloadTab(getActiveTabId())}>
+          <Icon name="refresh-cw" size={14} />
+        </button>
+      </div>
+      <div className={url ? "dk-url" : "dk-url is-local"}>
+        <button type="button" className="dk-url-text" onClick={copy} disabled={!url} title={url ? `${url} — Copy` : undefined}>
+          {url ? <Icon name={copied ? "check" : "lock"} size={12} /> : <img className="dk-url-logo" src={logo} alt="" />}
+          <span>{url ?? local}</span>
+        </button>
+        {url && (
+          <button type="button" className="dk-url-open" aria-label="Open in browser" title="Open in browser" onClick={() => window.open(url, "_blank", "noopener")}>
+            <Icon name="arrow-up-right" size={14} />
+          </button>
+        )}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/** Неподвижная «лента» для полосы вкладок, когда главная не открыта: нажатие ведёт на главную. */
+const IDLE_POSITION = { current: 0 };
+const idleSubscribe = () => () => {};
+
+/**
+ * Вкладки главной в заголовке окна, как разделы в Steam. На главной управляют её лентой;
+ * на других экранах ни одна не выбрана, а нажатие открывает главную на этой вкладке.
+ */
+function DeskTabs() {
+  const { t } = useI18n();
+  const { navigate } = useActiveRouter();
+  const { pathname, search } = usePageLocation();
+  const me = useMe();
+  const live = useDeskPager();
+  const communityMenu = useCommunityMenu();
+  const list = homeTabs(!!me, true);
+  const onHome = pathname === "/" && !new URLSearchParams(search).get("query")?.trim();
+  const active = onHome && live ? live : null;
+
+  const idle = useMemo(
+    () =>
+      ({
+        index: -1,
+        position: IDLE_POSITION,
+        subscribe: idleSubscribe,
+        goTo: (i: number) => {
+          const tab = list[i];
+          if (!tab) return;
+          setItem(HOME_TAB_KEY, tab.key);
+          if (!onHome) navigate("/");
+        },
+      }) as unknown as HomePagerState,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [list.map((x) => x.key).join(), onHome, navigate],
+  );
+
+  return (
+    <nav className="dk-tabs">
+      <PageTabs
+        pager={active ?? idle}
+        inactive={!active}
+        tabs={list.map((x) => ({ key: x.key, label: t(x.labelKey), menu: x.key === "community" ? communityMenu : undefined }))}
+      />
+      {/* Профиль аккаунта nhentai этой вкладки (без входа — окно входа) */}
+      <button
+        type="button"
+        className={me && pathname === ownProfileRoute(me) ? "dk-profile-tab is-active" : "dk-profile-tab"}
+        onClick={() => (me ? navigate(ownProfileRoute(me)) : openLogin())}
+      >
+        <NhAvatar src={me?.avatar_url} name={me?.username} size={20} />
+        <span>{t("nav.profile")}</span>
+      </button>
+    </nav>
   );
 }
 
@@ -140,7 +313,7 @@ function WindowControls() {
 
 /** Случайная книга: открыть, не давая нажать повторно, пока идёт запрос. */
 function useRandomBook() {
-  const navigate = useNavigate();
+  const { navigate } = useActiveRouter();
   const [rolling, setRolling] = useState(false);
   return async () => {
     if (rolling) return;

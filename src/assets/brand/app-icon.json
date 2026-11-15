@@ -1,0 +1,6 @@
+{
+  "default": "ml-appicon.svg",
+  "bg_color": "#D83333",
+  "android_fg": "ml-appicon-fg.svg",
+  "android_fg_scale": 80
+}

@@ -63,10 +63,19 @@ export function resolveUrl(path: string): string {
 
 // ─── Токены ───────────────────────────────────────────────────────────────────
 
+/**
+ * Хуки для MoeLibre (`lib/mlNhentai.ts`), без прямого импорта — клиент nhentai о MoeLibre не знает:
+ *  - `onStored` — токены сохранены (вход или обновление): новая сессия уходит в привязку MoeLibre;
+ *  - `recover` — обновить токены не удалось: попробовать взять свежую сессию из привязки
+ *    (её мог обновить другой вход на другом устройстве). true — токены на месте.
+ */
+export const tokenHooks: { onStored?: (access: string, refresh: string) => void; recover?: (failedRefresh: string) => Promise<boolean> } = {};
+
 export function storeTokens(accessToken: string, refreshToken: string): void {
   setItem(STORAGE_KEY_ACCESS, accessToken);
   setItem(STORAGE_KEY_REFRESH, refreshToken);
   devPushTokens(accessToken, refreshToken);
+  tokenHooks.onStored?.(accessToken, refreshToken);
 }
 
 export function loadAccessToken(): string | null {
@@ -210,6 +219,9 @@ export async function tryRefreshTokens(): Promise<boolean> {
     } catch {
       // В разработке токен мог обновить `tauri dev` или браузер рядом — сначала берём их свежие
       if (await devPullTokens()) return true;
+      // Сессию могло обновить другое устройство с той же привязкой MoeLibre
+      const failed = loadRefreshToken();
+      if (failed && tokenHooks.recover && (await tokenHooks.recover(failed).catch(() => false))) return true;
       clearTokens();
       return false;
     } finally {

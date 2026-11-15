@@ -169,10 +169,13 @@ export function PageTabs({
   tabs,
   pager,
   leading,
+  inactive = false,
 }: {
   tabs: PagerTab[];
   pager: PagerState;
   leading?: ReactNode;
+  /** Ни одна вкладка не выбрана (заголовок окна ПК, когда открыта не главная): без «пилюли». */
+  inactive?: boolean;
 }) {
   const strip = useRef<HTMLDivElement>(null);
   const buttons = useRef<(HTMLButtonElement | null)[]>([]);
@@ -243,7 +246,7 @@ export function PageTabs({
   }, [pager.index]);
 
   return (
-    <div className="ax-tabs">
+    <div className={inactive ? "ax-tabs is-idle" : "ax-tabs"}>
       {leading && <div className="ax-tabs-leading">{leading}</div>}
       <div
         ref={strip}
@@ -260,8 +263,8 @@ export function PageTabs({
             }}
             type="button"
             role="tab"
-            aria-selected={i === pager.index}
-            className={`${current === i ? "ax-tab is-active" : "ax-tab"}${tab.menu ? " has-menu" : ""}${menuAt === i ? " is-open" : ""}`}
+            aria-selected={!inactive && i === pager.index}
+            className={`${current === i && !inactive ? "ax-tab is-active" : "ax-tab"}${tab.menu ? " has-menu" : ""}${menuAt === i ? " is-open" : ""}`}
             aria-haspopup={tab.menu ? "menu" : undefined}
             aria-expanded={tab.menu ? menuAt === i : undefined}
             onClick={() => {
@@ -280,7 +283,7 @@ export function PageTabs({
         <TabMenuPanel
           anchor={buttons.current[menuAt]}
           menu={tabs[menuAt].menu!}
-          current={pager.index === menuAt}
+          current={!inactive && pager.index === menuAt}
           onPick={() => pager.goTo(menuAt)}
           onEnter={() => openMenu(menuAt)}
           onLeave={closeMenuSoon}

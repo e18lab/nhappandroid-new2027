@@ -2,33 +2,33 @@
  * Аккаунт nhentai в приложении — перенос `hooks/useOnlineMe.ts` и `hooks/useAuthBridge.ts`.
  * Профиль (`GET /user`) загружается при старте, если есть токены, и после входа; выход отзывает сессию.
  *
- * После входа устройство регистрируется на сервере nappi (`/api/users/sync`) и подключается к лобби
- * облачной синхронизации (`cloudSync.ts`). При выходе, как `clearUserLocalDataOnLogout` в старом,
- * локальная библиотека стирается — но только если в этой сессии она успела уйти в облако.
+ * Облако — облако MoeLibre (`cloudSync.ts`), по аккаунту MoeLibre ID; сюда сообщается только, какой аккаунт
+ * nhentai сейчас на устройстве: его библиотека (закладки, история) — своя часть облака и своё отложенное
+ * на устройстве. Старое облако nappi больше не используется.
  */
 import { useSyncExternalStore } from "react";
+import { useBoundValue } from "../browser/tabs";
 import { getMe } from "../api/account";
 import { logout } from "../api/auth";
-import { ApiError, devPullTokens, hasSession } from "../api/client";
+import { ApiError, clearTokens, devPullTokens, hasSession, storeTokens } from "../api/client";
 import type { Me } from "../api/types";
-import { syncUser, touchOnline } from "../api/nappi";
-import { clearLibraryAfterLogout, startCloudSync, stopCloudSync } from "./cloudSync";
-import { getDeviceId, getDeviceName } from "./device";
+import { clearLibraryAfterLogout, setCloudNhAccount } from "./cloudSync";
+import { unlinkBeforeNhLogout } from "./mlNhentai";
+import { forgetSession, rememberCurrentSession } from "./nhAccounts";
 import { syncOnlineFavorites } from "./onlineFavorites";
 import { resetRecommendations } from "./recommendations";
-import { removeItem } from "./storage";
 
-const ONLINE_KEYS = ["bookFavoritesOnline.v1", "@online.imported.cache", "@online.pendingFavorites.queue", "profile.me", "nh.me"];
 
 let me: Me | null = null;
 let started = false;
 const listeners = new Set<() => void>();
 
 function set(next: Me | null) {
-  const prevId = me?.id;
   me = next;
-  if (next?.id && next.id !== prevId) connectCloud(next);
-  else if (!next && prevId) stopCloudSync(true);
+  // Библиотека прежнего аккаунта откладывается, нового — возвращается; облако слушает часть этого аккаунта
+  setCloudNhAccount(next?.id ?? null);
+  // Сессия и профиль аккаунта — на устройстве, для мгновенного переключения вкладок
+  if (next) rememberCurrentSession(next);
   for (const fn of listeners) fn();
 }
 
@@ -49,6 +49,11 @@ export async function refreshMe(): Promise<Me | null> {
 }
 
 export function useMe(): Me | null {
+  // В невыбранной вкладке аккаунт не меняется — её экраны не перезагружаются от аккаунта другой вкладки
+  return useBoundValue(useMeLive());
+}
+
+function useMeLive(): Me | null {
   return useSyncExternalStore(
     (cb) => {
       listeners.add(cb);
@@ -63,21 +68,45 @@ export function useMe(): Me | null {
   );
 }
 
-/** Регистрация устройства (useOnlineMe в старом) и лобби; ошибки сети не мешают работе. */
-function connectCloud(user: Me) {
-  const deviceId = getDeviceId();
-  const deviceName = getDeviceName();
-  void syncUser({ id: user.id, username: user.username, deviceId, deviceName }).catch(() => undefined);
-  const online = () => void touchOnline(user.id, deviceId).catch(() => undefined);
-  online();
-  startCloudSync(user.id, deviceId, deviceName, online);
+/** Подписка на смену аккаунта вне React (вкладки запоминают свой аккаунт). */
+export function subscribeMe(fn: () => void): () => void {
+  listeners.add(fn);
+  return () => {
+    listeners.delete(fn);
+  };
+}
+
+/** id вошедшего аккаунта nhentai (профиль уже загружен), иначе null. */
+export const currentNhUserId = (): number | null => me?.id ?? null;
+
+/**
+ * Сменить аккаунт nhentai на устройстве без выхода на сервере — сессии остаются в привязке MoeLibre.
+ * Библиотека прежнего аккаунта откладывается на устройстве (и лежит в его части облака), нового — возвращается.
+ * `next` — токены нового аккаунта; null — остаться без входа (дальше — окно входа).
+ */
+export async function swapNhAccount(next: { access: string; refresh: string } | null, cachedMe?: Me): Promise<void> {
+  if (me) resetRecommendations();
+  if (next && cachedMe) {
+    // Сразу на другой аккаунт, без промежуточного «без входа»: экраны не дёргаются лишний раз
+    storeTokens(next.access, next.refresh);
+    set(cachedMe);
+    void refreshMe();
+    return;
+  }
+  set(null);
+  if (next) {
+    storeTokens(next.access, next.refresh);
+    await refreshMe();
+  } else clearTokens();
 }
 
 export async function signOut(): Promise<void> {
+  if (me) forgetSession(me.id);
   clearLibraryAfterLogout();
   resetRecommendations();
+  // Сессия общая с другими устройствами через MoeLibre — сначала отвязать, потом отозвать
+  await unlinkBeforeNhLogout();
   await logout();
-  for (const key of ONLINE_KEYS) removeItem(key);
   set(null);
 }
 
