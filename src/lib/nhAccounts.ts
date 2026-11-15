@@ -54,6 +54,17 @@ export function forgetSession(id: number): void {
   save();
 }
 
+/**
+ * Сохранённая сессия аккаунта оказалась от другого аккаунта (раньше запоздалый ответ профиля записывал токены
+ * под чужим id): забыть её и взять сессию из привязки MoeLibre. null — взять неоткуда.
+ */
+export async function repairSavedSession(id: number): Promise<{ access: string; refresh: string } | null> {
+  if (sessions[id]?.access === loadAccessToken()) forgetSession(id);
+  if (!mlSignedIn() || !isNhLinked(id)) return null;
+  const pulled = await pullNhSession(id);
+  return pulled ? { access: pulled.access_token, refresh: pulled.refresh_token! } : null;
+}
+
 let switching: Promise<boolean> | null = null;
 
 /**

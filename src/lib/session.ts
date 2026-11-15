@@ -14,13 +14,19 @@ import { ApiError, clearTokens, devPullTokens, hasSession, storeTokens } from ".
 import type { Me } from "../api/types";
 import { clearLibraryAfterLogout, setCloudNhAccount } from "./cloudSync";
 import { unlinkBeforeNhLogout } from "./mlNhentai";
-import { forgetSession, rememberCurrentSession } from "./nhAccounts";
+import { forgetSession, rememberCurrentSession, repairSavedSession } from "./nhAccounts";
 import { syncOnlineFavorites } from "./onlineFavorites";
 import { resetRecommendations } from "./recommendations";
 
 
 let me: Me | null = null;
 let started = false;
+/**
+ * Номер последнего запроса профиля / смены аккаунта. Ответ на запрос профиля, отправленный до смены аккаунта
+ * (например, стартовый — с токенами прошлого запуска), устарел: без этой проверки он возвращал прежний аккаунт
+ * поверх выбранного во вкладке, и вкладка запоминала его.
+ */
+let generation = 0;
 const listeners = new Set<() => void>();
 
 function set(next: Me | null) {
@@ -32,16 +38,32 @@ function set(next: Me | null) {
   for (const fn of listeners) fn();
 }
 
-/** Профиль с сервера; при 401 (токены отозваны) — сессия сбрасывается клиентом. */
-export async function refreshMe(): Promise<Me | null> {
+/**
+ * Профиль с сервера; при 401 (токены отозваны) — сессия сбрасывается клиентом.
+ * `expectId` — аккаунт, на который только что переключились по сохранённой сессии: если токены оказались
+ * от другого аккаунта (сохранённое испорчено), сессия берётся заново из привязки MoeLibre.
+ */
+export async function refreshMe(expectId?: number): Promise<Me | null> {
+  const gen = ++generation;
   if (!hasSession()) {
     set(null);
     return null;
   }
   try {
-    set(await getMe());
+    const next = await getMe();
+    if (gen !== generation) return me;
+    if (expectId != null && next.id !== expectId) {
+      const fresh = await repairSavedSession(expectId);
+      if (gen !== generation) return me;
+      if (fresh) {
+        storeTokens(fresh.access, fresh.refresh);
+        return refreshMe();
+      }
+    }
+    set(next);
     void syncOnlineFavorites();
   } catch (e) {
+    if (gen !== generation) return me;
     // Сеть могла упасть только сейчас — профиль не затираем, пока токены на месте
     if (!hasSession() || (e instanceof ApiError && e.status === 401)) set(null);
   }
@@ -85,12 +107,13 @@ export const currentNhUserId = (): number | null => me?.id ?? null;
  * `next` — токены нового аккаунта; null — остаться без входа (дальше — окно входа).
  */
 export async function swapNhAccount(next: { access: string; refresh: string } | null, cachedMe?: Me): Promise<void> {
+  generation++;
   if (me) resetRecommendations();
   if (next && cachedMe) {
     // Сразу на другой аккаунт, без промежуточного «без входа»: экраны не дёргаются лишний раз
     storeTokens(next.access, next.refresh);
     set(cachedMe);
-    void refreshMe();
+    void refreshMe(cachedMe.id);
     return;
   }
   set(null);
@@ -101,6 +124,7 @@ export async function swapNhAccount(next: { access: string; refresh: string } | 
 }
 
 export async function signOut(): Promise<void> {
+  generation++;
   if (me) forgetSession(me.id);
   clearLibraryAfterLogout();
   resetRecommendations();

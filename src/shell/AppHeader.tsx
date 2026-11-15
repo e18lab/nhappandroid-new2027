@@ -1,14 +1,13 @@
 /**
- * Шапка главных разделов — новый кит (в духе Anixart): логотип MoeLibre слева (профиль MoeLibre: облако, аккаунты),
- * рядом настройки приложения; справа выбор тегов и фильтры каталога (на главной) и вкладки (число открытых). Поиск — в нижней панели. Шапка статичная: не уезжает при прокрутке и не участвует в переходах между
+ * Шапка главных разделов — новый кит (в духе Anixart): слева кнопка левого меню (`SideMenu`: аккаунт MoeLibre,
+ * настройки, вкладки); справа выбор тегов и фильтры каталога (на главной). Поиск — в нижней панели. Шапка статичная: не уезжает при прокрутке и не участвует в переходах между
  * разделами. Настройки и профиль — в нижней панели. Внутренние экраны оставляют `TopBar` со стрелкой «назад».
  */
 import { useLocation, useNavigate } from "react-router-dom";
-import logo from "../assets/logo.png";
 import { useI18n } from "../i18n/I18nContext";
 import { Icon } from "../ui";
 import { CatalogFilterButton } from "./CatalogFilter";
-import { TabsButton } from "../screens/TabsScreen";
+import { SideMenuButton } from "./SideMenu";
 import { UpdateButton } from "./UpdateButton";
 
 export function AppHeader({ title }: { title?: string }) {
@@ -18,13 +17,8 @@ export function AppHeader({ title }: { title?: string }) {
 
   return (
     <header className="ax-header">
-      <button type="button" className="ax-header-logo" aria-label={t("mlid.account")} onClick={() => navigate("/mlid")}>
-        <img src={logo} alt="" />
-      </button>
-      {/* Настройки приложения — рядом с MoeLibre */}
-      <button type="button" className="ax-icon-btn ax-header-settings" aria-label={t("menu.settings")} onClick={() => navigate("/settings")}>
-        <Icon name="settings" size={22} />
-      </button>
+      {/* Меню: аккаунт MoeLibre, настройки, вкладки */}
+      <SideMenuButton />
       {title && <h1 className="ax-header-title">{title}</h1>}
       <div className="ax-header-actions">
         {pathname === "/" && <UpdateButton />}
@@ -34,7 +28,6 @@ export function AppHeader({ title }: { title?: string }) {
           </button>
         )}
         {pathname === "/" && <FilterButton />}
-        <TabsButton />
       </div>
     </header>
   );

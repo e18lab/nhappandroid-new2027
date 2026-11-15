@@ -40,6 +40,7 @@ import { DesktopTitleBar } from "./DesktopChrome";
 import { DownloadBanner, DownloadNotifier } from "./DownloadBanner";
 import { usePredictiveBack, useSwipeBack } from "./swipeBack";
 import { MobileTabBridge } from "../screens/TabsScreen";
+import { SideMenu } from "./SideMenu";
 import { TopBar } from "./TopBar";
 import { isWindowRoute, WIDE_QUERY } from "./windowRoutes";
 
@@ -266,6 +267,7 @@ export function Shell({
         {!embedded && <LoginHost />}
         {!embedded && <MlLoginHost />}
         {!embedded && !IS_DESKTOP && <MobileTabBridge />}
+        {!embedded && !IS_DESKTOP && <SideMenu />}
       </div>
   );
   if (embedded) return main;
