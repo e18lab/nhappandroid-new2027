@@ -232,7 +232,14 @@ let meta: Record<string, number> = (() => {
 })();
 let metaTimer: ReturnType<typeof setTimeout> | null = null;
 
-function touch(key: string, t: number) {
+/**
+ * Ключ отметки времени: у сохранений аккаунта — своя на каждый аккаунт. Раньше отметка была общей на ключ,
+ * и при переходе в другой аккаунт его пустая (ещё не загруженная) история «новее» облачной — облако затиралось.
+ */
+const mk = (part: string, key: string) => (part.startsWith("acc:") ? `${part}\u0000${key}` : key);
+
+function touch(key: string, t: number, part: string | null = partOf(key)) {
+  key = part ? mk(part, key) : key;
   meta[key] = t;
   if (!metaTimer) metaTimer = setTimeout(saveMeta, META_SAVE_MS);
 }
@@ -387,7 +394,12 @@ function flush() {
   for (const [part, keys] of pending) {
     if (!loaded.has(part) || !isPartOn(part)) continue;
     const changes: Record<string, { v: string | null; t: number }> = {};
-    for (const key of keys) changes[key] = { v: getItem(key), t: meta[key] ?? 1 };
+    for (const key of keys) {
+      const v = getItem(key);
+      // Закладки и история не «удаляются» облаком: пустое значение — это «нет данных», а не «стереть»
+      if (v == null && MERGERS[key]) continue;
+      changes[key] = { v, t: meta[mk(part, key)] ?? 1 };
+    }
     pending.delete(part);
     if (Object.keys(changes).length && !send({ type: "push", id: ++seq, part, changes })) {
       // Нет связи — вернуть в очередь
@@ -405,16 +417,23 @@ function applyEntries(part: string, entries: Record<string, Entry>, full: boolea
   for (const [key, e] of Object.entries(entries)) {
     if (partOf(key) !== part) continue;
     const local = getItem(key);
-    const lt = meta[key] ?? 0;
-    const merger = MERGERS[key];
+    const lt = meta[mk(part, key)] ?? 0;
+    const merger: Merger | undefined = MERGERS[key];
+    const mergeable = merger !== undefined;
     if (merger && e.v != null && local != null) {
       const merged = merger(local, e.v, lt >= e.t);
       if (merged !== local) writeQuiet(key, merged);
-      touch(key, Math.max(lt, e.t));
+      touch(key, Math.max(lt, e.t), part);
       if (merged !== e.v) markPending(part, key);
+    } else if (mergeable) {
+      // Сливаемое и с одной стороны пусто — берём то, что есть
+      if (e.v != null && local == null) {
+        writeQuiet(key, e.v);
+        touch(key, e.t, part);
+      } else if (e.v == null && local != null) markPending(part, key);
     } else if (e.t > lt || (local == null && lt === 0)) {
       if (local !== e.v) writeQuiet(key, e.v);
-      touch(key, e.t);
+      touch(key, e.t, part);
     } else if (e.t < lt && local !== e.v) {
       markPending(part, key);
     }
@@ -423,8 +442,12 @@ function applyEntries(part: string, entries: Record<string, Entry>, full: boolea
   if (favTouched) deriveFavorites();
   if (full) {
     for (const key of Object.keys(getAll())) if (!(key in entries) && partOf(key) === part) markPending(part, key);
-    // Удалённые на устройстве ключи с отметкой времени — тоже отправить
-    for (const key of Object.keys(meta)) if (!(key in entries) && getItem(key) == null && partOf(key) === part) markPending(part, key);
+    // Удалённые на устройстве ключи с отметкой времени — тоже отправить (сливаемые — нет, см. flush)
+    for (const raw of Object.keys(meta)) {
+      const key = raw.includes("\u0000") ? raw.slice(raw.indexOf("\u0000") + 1) : raw;
+      if (mk(part, key) !== raw || key in entries || MERGERS[key]) continue;
+      if (getItem(key) == null && partOf(key) === part) markPending(part, key);
+    }
   }
 }
 
@@ -624,7 +647,9 @@ export function setCloudNhAccount(next: number | null): void {
   if (prev) pending.delete(accPart(prev));
   nhAccount = next;
   if (prev) loaded.delete(accPart(prev));
-  resubscribe();
+  // Часть аккаунта — всегда заново с сервера: за время, что он был закрыт, её могли поменять (другое устройство,
+  // перенос), а сервер сам присылает часть только при первой подписке
+  resubscribe(next ? accPart(next) : null);
 }
 
 /** Выход из nhentai: библиотека аккаунта откладывается (вернётся при входе в него) и стирается с экрана. */
