@@ -1,206 +1,182 @@
 /**
- * Поиск — перенос `app/search.tsx` (релиз 1.3.1): своя шапка с полем,
- * недавние запросы (`searchHistory`, до 10), живые подсказки по мере ввода,
- * число — сразу открыть книгу, Enter — результаты в «Обзоре».
+ * Поиск на телефоне — раздел нижней панели, в стиле остальных разделов: шапка «Поиск» с тегами и фильтрами,
+ * большое поле-«лепесток», ниже сразу результаты (та же лента, что в каталоге), обновляются по мере ввода.
+ * Пока поле пустое — недавние запросы чипами. Число — карточка «Открыть книгу #…».
+ * Запрос — в адресе (`?query=`), поэтому вкладка и «назад» его помнят.
  */
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { galleryCardToBook, type Book } from "../api/book";
-import { listGalleries } from "../api/galleries";
-import { initCdn, thumbSources } from "../api/media";
-import { SmartImage } from "../components/SmartImage";
+import { useEffect, useRef, useState } from "react";
+import { Navigate, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { devicePath } from "../browser/tabs";
+import { IS_DESKTOP } from "../lib/platform";
+import { CatalogFeed } from "../components/CatalogFeed";
 import { useI18n } from "../i18n/I18nContext";
-import { buildQuery, getSort, getUploaded, setUploaded, useBrowseFilters } from "../lib/browseFilters";
-import { isBookBlacklisted, useBlacklistSets } from "../lib/blacklist";
 import { loadSearchHistory, rememberSearch } from "../lib/library";
+import { isNumericBookId } from "../lib/searchSuggest";
 import { KEYS, removeItem, setJSON } from "../lib/storage";
-import { useBookTitle } from "../lib/titleTranslations";
-import { Icon, LoadingSpinner, useToast } from "../ui";
+import { FilterButton } from "../shell/AppHeader";
+import { Icon } from "../ui";
+import { useImagePicker } from "./ImageSearchScreen";
 
-const isNumericBookId = (s: string) => /^\d+$/.test(s.trim());
+/** Пауза после ввода, прежде чем искать. */
+const TYPE_DELAY_MS = 450;
 
 export function SearchScreen() {
+  // На ПК поиск — поле в заголовке окна: адрес страницы поиска телефона ведёт сразу к результатам
+  if (IS_DESKTOP) return <DesktopSearchRedirect />;
+  return <MobileSearch />;
+}
+
+function DesktopSearchRedirect() {
+  const { search } = useLocation();
+  return <Navigate to={devicePath(`/search${search}`, true)} replace />;
+}
+
+function MobileSearch() {
   const { t } = useI18n();
   const navigate = useNavigate();
-  const { showToast } = useToast();
-  const [params] = useSearchParams();
-  const filters = useBrowseFilters();
-  const [q, setQ] = useState(params.get("query") ?? "");
+  const imagePicker = useImagePicker();
+  const [params, setParams] = useSearchParams();
+  const urlQuery = params.get("query") ?? "";
+  const [q, setQ] = useState(urlQuery);
   const [history, setHistory] = useState(loadSearchHistory);
-  const [allSuggests, setSuggests] = useState<Book[]>([]);
-  const blacklist = useBlacklistSets();
-  const suggests = useMemo(() => allSuggests.filter((b) => !isBookBlacklisted(b, blacklist)), [allSuggests, blacklist]);
-  const [loading, setLoading] = useState(false);
-  const dateFilterActive = !!getUploaded();
+  const input = useRef<HTMLInputElement>(null);
   const trimmed = q.trim();
 
-  const submit = (text = q) => {
+  // Ввод → через паузу запрос в адрес (лента ниже ищет по нему)
+  useEffect(() => {
+    if (trimmed === urlQuery.trim()) return;
+    const timer = window.setTimeout(() => setParams(trimmed ? { query: trimmed } : {}, { replace: true }), TYPE_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [trimmed]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Пустая страница поиска — сразу клавиатура. Без прокрутки и после перехода: фокус во время сдвига экрана
+  // заставлял браузер прокрутить контейнер экранов вбок, и страница оставалась сдвинутой
+  useEffect(() => {
+    if (urlQuery) return;
+    const timer = window.setTimeout(() => input.current?.focus({ preventScroll: true }), 320);
+    return () => window.clearTimeout(timer);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const commit = (text = q) => {
     const query = text.trim();
     if (!query) return;
     rememberSearch(query);
     setHistory(loadSearchHistory());
-    if (isNumericBookId(query)) navigate(`/book/${query}`);
-    else navigate(`/explore?query=${encodeURIComponent(query)}`);
+    setQ(query);
+    setParams({ query }, { replace: true });
+    input.current?.blur();
   };
 
-  useEffect(() => {
-    if (!trimmed || dateFilterActive || isNumericBookId(trimmed)) {
-      setSuggests([]);
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    let cancelled = false;
-    const timer = window.setTimeout(async () => {
-      try {
-        await initCdn();
-        const res = await listGalleries(1, getSort(), buildQuery(trimmed));
-        if (!cancelled) setSuggests(res.result.map(galleryCardToBook));
-      } catch {
-        if (!cancelled) setSuggests([]);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }, 250);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
-  }, [trimmed, dateFilterActive, filters]);
+  const removeOne = (item: string) => {
+    const next = history.filter((h) => h !== item);
+    setJSON(KEYS.searchHistory, next);
+    setHistory(next);
+  };
 
-  const filteredHistory = trimmed ? history.filter((h) => h.toLowerCase().includes(trimmed.toLowerCase())) : history;
+  const shown = urlQuery.trim();
 
   return (
-    <div className="screen-fill search-screen">
-      <div className="search-top">
-        <button type="button" className="topbar-btn" aria-label={t("common.back")} onClick={() => navigate(-1)}>
-          <Icon name="arrow-left" size={20} />
-        </button>
-        <div className="search-input-wrap">
-          <Icon name="search" size={18} className="search-input-icon" />
-          <input
-            autoFocus
-            value={q}
-            placeholder={t("search.placeholder")}
-            enterKeyHint="search"
-            autoCapitalize="none"
-            autoCorrect="off"
-            onChange={(e) => setQ(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && submit()}
-          />
-          {q !== "" && (
-            <button type="button" className="search-small-btn" aria-label={t("common.reset")} onClick={() => setQ("")}>
-              <Icon name="x" size={16} />
-            </button>
-          )}
+    <div className="screen-fill msr">
+      {/* Шапка как у остальных разделов: заголовок, теги и фильтры */}
+      <header className="ax-header msr-head">
+        <h1 className="ax-header-title">{t("nav.search")}</h1>
+        <div className="ax-header-actions">
+          <button type="button" className="ax-icon-btn" aria-label={t("menu.tags")} onClick={() => navigate("/tags")}>
+            <Icon name="tag" size={21} />
+          </button>
+          <FilterButton />
+        </div>
+      </header>
+
+      <div className="msr-field">
+        <Icon name="search" size={20} className="msr-field-icon" />
+        <input
+          ref={input}
+          value={q}
+          placeholder={t("search.placeholder")}
+          enterKeyHint="search"
+          autoCapitalize="none"
+          autoCorrect="off"
+          onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && commit()}
+        />
+        {q !== "" && (
           <button
             type="button"
-            className="search-small-btn topbar-accent"
-            aria-label={t("search.searchByImage")}
-            onClick={() => showToast({ title: t("search.searchByImage"), message: t("menu.comingSoon") })}
+            className="msr-field-btn"
+            aria-label={t("common.reset")}
+            onClick={() => {
+              setQ("");
+              setParams({}, { replace: true });
+              input.current?.focus({ preventScroll: true });
+            }}
           >
-            <Icon name="image" size={18} />
+            <Icon name="x" size={18} />
           </button>
-        </div>
-        <button type="button" className="topbar-btn topbar-accent" aria-label={t("menu.tags")} onClick={() => navigate("/tags")}>
-          <Icon name="tag" size={18} />
+        )}
+        <button type="button" className="msr-field-btn is-accent" aria-label={t("search.searchByImage")} onClick={imagePicker.pick}>
+          <Icon name="image" size={20} />
         </button>
+        {imagePicker.element}
       </div>
 
-      {trimmed && (
-        <div className="search-results-caption">
-          {t("search.results")}: <span>{trimmed}</span>
-        </div>
+      {isNumericBookId(trimmed) && (
+        <button type="button" className="msr-open" onClick={() => navigate(`/book/${trimmed}`)}>
+          <span className="msr-open-icon">
+            <Icon name="book-open" size={20} />
+          </span>
+          <span className="msr-open-text">
+            <b>{t("searchx.openBook", { id: trimmed })}</b>
+            <span>nhentai.net/g/{trimmed}</span>
+          </span>
+          <Icon name="chevron-right" size={20} />
+        </button>
       )}
 
-      <div className="screen-scroll search-body">
-        {filteredHistory.length > 0 && (
-          <>
-            <div className="search-head-row">
-              <span className="search-head">{t("search.recent")}</span>
-              <button
-                type="button"
-                className="search-pill"
-                onClick={() => {
-                  removeItem(KEYS.searchHistory);
-                  setHistory([]);
-                }}
-              >
-                {t("search.clearHistory")}
-              </button>
-            </div>
-            {filteredHistory.map((item) => (
-              <div key={item} className="search-history-row">
-                <button type="button" className="search-row" onClick={() => submit(item)}>
-                  <Icon name="clock" size={16} className="ui-muted" />
-                  <span className="search-row-text">{item}</span>
-                </button>
+      {shown ? (
+        // Результаты на этой же странице; при смене запроса лента начинается заново
+        <div className="m-search-results" onPointerDown={() => input.current?.blur()}>
+          <CatalogFeed key={shown} query={shown} />
+        </div>
+      ) : (
+        <div className="screen-scroll msr-body">
+          {history.length > 0 ? (
+            <section>
+              <div className="msr-section-head">
+                <h2>{t("search.recent")}</h2>
                 <button
                   type="button"
-                  className="search-small-btn"
-                  aria-label={t("common.delete")}
                   onClick={() => {
-                    const next = history.filter((h) => h !== item);
-                    setJSON(KEYS.searchHistory, next);
-                    setHistory(next);
+                    removeItem(KEYS.searchHistory);
+                    setHistory([]);
                   }}
                 >
-                  <Icon name="x" size={16} />
+                  {t("search.clearHistory")}
                 </button>
               </div>
-            ))}
-          </>
-        )}
-
-        {trimmed && (
-          <>
-            <div className="search-head" style={{ marginTop: filteredHistory.length ? 14 : 2 }}>
-              {t("search.results")}
+              <div className="msr-chips">
+                {history.map((item) => (
+                  <span key={item} className="msr-chip">
+                    <button type="button" className="msr-chip-text" onClick={() => commit(item)}>
+                      {item}
+                    </button>
+                    <button type="button" className="msr-chip-x" aria-label={t("common.delete")} onClick={() => removeOne(item)}>
+                      <Icon name="x" size={13} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            </section>
+          ) : (
+            <div className="msr-empty">
+              <span className="msr-empty-icon">
+                <Icon name="search" size={28} />
+              </span>
+              <p>{t("searchx.hint")}</p>
             </div>
-            {dateFilterActive ? (
-              <div className="search-date-note">
-                <div className="search-date-note-title">
-                  <Icon name="calendar" size={16} className="ui-accent" />
-                  <span>Предпросмотр не работает с датами</span>
-                </div>
-                <p>
-                  Открой результаты или{" "}
-                  <button type="button" onClick={() => setUploaded(null)}>
-                    сбрось даты
-                  </button>
-                  , чтобы увидеть быстрые подсказки.
-                </p>
-              </div>
-            ) : loading ? (
-              <LoadingSpinner size="small" color="var(--sub)" />
-            ) : suggests.length ? (
-              suggests.map((b) => (
-                <button
-                  key={b.id}
-                  type="button"
-                  className="search-row"
-                  onClick={() => navigate(`/book/${b.id}?title=${encodeURIComponent(b.title.pretty)}`)}
-                >
-                  <span className="search-thumb">
-                    <SmartImage sources={thumbSources(b.thumbnail)} />
-                  </span>
-                  <span className="search-row-body">
-                    <SuggestTitle book={b} />
-                    <span className="search-row-meta">{t("book.pages", { count: b.pagesCount })}</span>
-                  </span>
-                </button>
-              ))
-            ) : (
-              <p className="search-empty">{t("empty.search", { q: trimmed })}</p>
-            )}
-          </>
-        )}
-      </div>
+          )}
+        </div>
+      )}
     </div>
   );
-}
-
-/** Название в подсказке — переведённое, если есть. */
-function SuggestTitle({ book }: { book: Book }) {
-  return <span className="search-row-text">{useBookTitle(book)}</span>;
 }

@@ -24,6 +24,7 @@ const LIBRARY_MENU: { labelKey: string; icon: IconName; route: string }[] = [
   { labelKey: "menu.favoritesOnline", icon: "heart", route: "/favorites-online" },
   { labelKey: "menu.history", icon: "clock", route: "/history" },
   { labelKey: "nav.community", icon: "users", route: "/community" },
+  { labelKey: "menu.characters", icon: "user", route: "/characters" },
   { labelKey: "menu.recommendations", icon: "star", route: "/recommendations" },
   { labelKey: "menu.settings", icon: "settings", route: "/settings" },
 ];

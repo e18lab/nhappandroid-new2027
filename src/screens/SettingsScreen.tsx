@@ -16,15 +16,12 @@ import { getRandomGalleryId, listGalleries } from "../api/galleries";
 import { initCdn } from "../api/media";
 import { BookCollection } from "../components/BookCollection";
 import { DEFAULT_GRID, gridLayout, gridProfileFor, loadGridConfig, saveGridConfig, type GridConfig, type GridProfile } from "../components/BookGrid";
-import { avatarUrl } from "../components/CommentCard";
 import { StorageManager } from "../components/StorageManager";
 import { useI18n, type AppLocale } from "../i18n/I18nContext";
 import { CARD_VIEWS, setCardView, useCardView, type CardViewKind } from "../lib/cardView";
 import { downloadsDir, inTauri } from "../lib/downloads";
-import { ownProfileRoute, useMe } from "../lib/session";
 import { KEYS, getItem, removeItem, setItem } from "../lib/storage";
 import { setLangPref, useLangPref } from "../lib/langPrefs";
-import { LoginModal } from "../shell/LoginModal";
 import { applyFullscreen } from "../shell/systemUi";
 import { applyTheme, getBaseHue, saveHue, setBaseHue, themeColors } from "../theme";
 import { Icon, ListGroup, ListHint, ListRow, RadioRow, Spinner, StepperRow, SwitchRow, type IconName } from "../ui";
@@ -71,15 +68,12 @@ function usePersistedBool(key: string, def: boolean): [boolean, (v: boolean) => 
   ];
 }
 
-/** Главная страница настроек: аккаунт, список разделов, «Ещё», версия. */
+/** Главная страница настроек — только приложение: разделы, «Ещё», версия. Аккаунты nhentai — `/accounts/nhentai`. */
 export function SettingsScreen() {
   const { t, available, locale } = useI18n();
   const navigate = useNavigate();
-  const me = useMe();
-  const [loginOpen, setLoginOpen] = useState(false);
   const [randomBusy, setRandomBusy] = useState(false);
   const taps = useRef<{ count: number; timer: number | null }>({ count: 0, timer: null });
-  const avatar = me?.avatar_url ? avatarUrl(me.avatar_url) : "";
 
   const onVersionPress = () => {
     const s = taps.current;
@@ -111,22 +105,7 @@ export function SettingsScreen() {
 
   return (
     <div className="screen-scroll set-page set-hub">
-      <button type="button" className="set-account" onClick={() => (me ? navigate(ownProfileRoute(me)) : setLoginOpen(true))}>
-        <span className="set-account-avatar">{avatar ? <img src={avatar} alt="" /> : <Icon name="user" size={44} />}</span>
-        <span className="set-account-name">{me ? me.username : t("nav.guest")}</span>
-        <span className="set-account-sub">{me ? t("settings.hub.userId", { id: me.id }) : t("settings.hub.guestSub")}</span>
-      </button>
-
       <ListGroup>
-        {me && (
-          <ListRow
-            icon="user"
-            color="#2f9be8"
-            title={t("settings.section.account")}
-            sub={t("settings.hub.accountSub")}
-            onPress={() => navigate("/settings/account")}
-          />
-        )}
         <ListRow
           icon="language"
           color="#5b7cf0"
@@ -167,11 +146,10 @@ export function SettingsScreen() {
 
       <div className="set-footer">
         <button type="button" onClick={onVersionPress}>
-          NHApp v{version} {t("app.version.beta")}
+          MoeLibre v{version} {t("app.version.beta")}
         </button>
       </div>
 
-      <LoginModal visible={loginOpen} onClose={() => setLoginOpen(false)} />
     </div>
   );
 }

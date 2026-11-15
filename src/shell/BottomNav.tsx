@@ -23,7 +23,8 @@ interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { key: "home", icon: "home", labelKey: "nav.home", match: (p) => p === "/" || p.startsWith("/explore") || LIBRARY_ROUTES.some((r) => p.startsWith(r)) },
   { key: "community", icon: "users", labelKey: "nav.community", match: (p) => p.startsWith("/community") },
-  { key: "settings", icon: "settings", labelKey: "menu.settings", match: (p) => p.startsWith("/settings") },
+  { key: "search", icon: "search", labelKey: "nav.search", match: (p) => p.startsWith("/search") },
+  // Профиль аккаунта nhentai выбранной вкладки (без входа — окно входа)
   { key: "profile", icon: "user", labelKey: "nav.profile", match: (p, own) => p === "/me" || (!!own && p === own) },
 ];
 
@@ -34,6 +35,8 @@ export function navRoute(key: string, own: string): string {
       return "/";
     case "community":
       return "/community";
+    case "search":
+      return "/search";
     case "settings":
       return "/settings";
     default:

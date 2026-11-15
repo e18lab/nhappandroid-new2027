@@ -8,6 +8,7 @@
  * подсказки зон при входе (3 с), баннер при смене режима. Настройки — `reader_last_*`, как в старом.
  * Прогресс пишется в `readHistory` при открытии и на каждой смене страницы.
  */
+import { useTabActive } from "../browser/tabs";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -284,10 +285,11 @@ export function ReaderScreen() {
     jumpFrame(frameIdx + (dir === "prev" ? -1 : 1));
   };
 
-  // Клавиатура на ПК
+  // Клавиатура на ПК — только в выбранной вкладке браузера
+  const tabActive = useTabActive();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (settingsOpen || continuous) return;
+      if (settingsOpen || continuous || !tabActive) return;
       if (e.key === "ArrowRight" || e.key === "ArrowDown" || e.key === " ") jumpFrame(frameIdx + 1);
       else if (e.key === "ArrowLeft" || e.key === "ArrowUp") jumpFrame(frameIdx - 1);
       else return;

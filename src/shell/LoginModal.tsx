@@ -15,6 +15,7 @@ import { login, register, requestPasswordReset } from "../api/auth";
 import { ApiError } from "../api/client";
 import { getCaptchaInfo, getPowChallenge, solvePoW } from "../api/config";
 import { useI18n } from "../i18n/I18nContext";
+import { linkAfterNhLogin } from "../lib/mlNhentai";
 import { captchaSupported, refreshMe, requestCaptcha } from "../lib/session";
 import { Icon, Spinner } from "../ui";
 import { useBackHandler } from "./androidBack";
@@ -167,6 +168,8 @@ export function LoginModal({
       if (mode === "login") await login({ username: u, password, ...guard });
       else await register({ username: u, email: em, password, ...guard });
       await refreshMe();
+      // Вошли в MoeLibre ID — аккаунт nhentai привязывается сам
+      void linkAfterNhLogin();
       resetForm();
       onClose();
     } catch (e) {

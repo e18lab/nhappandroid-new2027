@@ -3,7 +3,7 @@
  * Кеш на минуту, общий для всех подписчиков. Без входа (и без ключа API) список пустой и не запрашивается.
  * Карточка скрытой книги размывается, в результатах поиска такие книги убираются совсем.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { getBlacklist, getBlacklistIds } from "../api/account";
 import type { Book } from "../api/book";
 import { hasSession } from "../api/client";
@@ -18,11 +18,16 @@ let cache: BlacklistCache | null = null;
 let cacheAt = 0;
 let inFlight: Promise<BlacklistCache> | null = null;
 const listeners = new Set<() => void>();
+let sets: BlacklistSets = { ids: new Set(), names: new Set() };
 
 function store(next: BlacklistCache): BlacklistCache {
+  const changed = next.ids.length !== sets.ids.size || next.names.length !== sets.names.size || next.ids.some((id) => !sets.ids.has(id)) || next.names.some((n) => !sets.names.has(n));
   cache = next;
   cacheAt = Date.now();
-  for (const fn of listeners) fn();
+  if (changed) {
+    sets = { ids: new Set(next.ids), names: new Set(next.names) };
+    for (const fn of listeners) fn();
+  }
   return next;
 }
 
@@ -68,28 +73,30 @@ export function refreshBlacklistCache(): Promise<BlacklistCache> {
   return loadBlacklist();
 }
 
-function useBlacklistState(): BlacklistCache {
-  const [state, setState] = useState<BlacklistCache>(cache ?? EMPTY);
-  useEffect(() => {
-    const sync = () => setState(cache ?? EMPTY);
-    listeners.add(sync);
-    if (cache == null || Date.now() - cacheAt >= CACHE_TTL_MS) void loadBlacklist();
-    else sync();
-    return () => {
-      listeners.delete(sync);
-    };
-  }, []);
-  return state;
-}
-
 export interface BlacklistSets {
   ids: Set<number>;
   names: Set<string>;
 }
 
+function subscribeSets(cb: () => void) {
+  listeners.add(cb);
+  if (cache == null || Date.now() - cacheAt >= CACHE_TTL_MS) void loadBlacklist();
+  return () => {
+    listeners.delete(cb);
+  };
+}
+
+const currentSets = () => sets;
+
+/** Наборы общие на всех: подписана каждая карточка, и объект меняется, только если изменился сам список. */
 export function useBlacklistSets(): BlacklistSets {
-  const state = useBlacklistState();
-  return useMemo(() => ({ ids: new Set(state.ids), names: new Set(state.names) }), [state]);
+  return useSyncExternalStore(subscribeSets, currentSets);
+}
+
+/** Текущий чёрный список вне компонентов (рекомендации). */
+export async function getBlacklistSets(): Promise<BlacklistSets> {
+  await loadBlacklist();
+  return sets;
 }
 
 export function isBookBlacklisted(book: Book, { ids, names }: BlacklistSets): boolean {

@@ -13,7 +13,7 @@ import { thumbSources } from "../api/media";
 import { useI18n } from "../i18n/I18nContext";
 import { isBookBlacklisted, useBlacklistSets } from "../lib/blacklist";
 import type { CardShow } from "../lib/cardView";
-import { isFavorite, toggleFavorite } from "../lib/library";
+import { toggleFavorite, useIsFavorite } from "../lib/library";
 import { tagById, toSingular, useTagsDbReady } from "../lib/tagsDb";
 import { useTagLabel } from "../lib/tagTranslations";
 import { useBookTitle } from "../lib/titleTranslations";
@@ -53,7 +53,7 @@ export function useBookFacts(book: Book) {
 /** Меню «⋮» карточки: в закладки, читать. */
 export function useBookMenu(book: Book, onRead?: (b: Book) => void): SelectItem[] {
   const { t } = useI18n();
-  const fav = isFavorite(book.id);
+  const fav = useIsFavorite(book.id);
   return [
     {
       type: "action",

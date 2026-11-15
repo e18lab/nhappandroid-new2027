@@ -21,7 +21,7 @@ import { SmartImage } from "./SmartImage";
 
 const NONE: Book[] = [];
 
-export function BookCollection({
+export const BookCollection = memo(function BookCollection({
   books,
   onPress,
   onRead,
@@ -45,7 +45,7 @@ export function BookCollection({
       ))}
     </div>
   );
-}
+});
 
 /** Ширина элемента карусели по виду карточек. */
 const CAROUSEL_W: Record<string, number> = { grid: 140, classic: 150, list: 300, compact: 260 };

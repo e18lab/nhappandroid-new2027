@@ -37,6 +37,8 @@ export function CloudButton() {
   const { t } = useI18n();
   const cloud = useCloudState();
   const count = cloud.peers.length;
+  // Облако MoeLibre выключено (или нет входа в MoeLibre) — значка нет; включается в профиле MoeLibre
+  if (cloud.enabled !== true) return null;
 
   const items: SelectItem[] = [
     {

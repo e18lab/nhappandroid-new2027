@@ -113,15 +113,44 @@ export function getAll(): Record<string, string> {
   return out;
 }
 
+// На окне один обработчик на всех: подписываются сотни карточек, и у каждой был бы свой
+const allListeners = new Set<(key: string) => void>();
+const keyListeners = new Map<string, Set<() => void>>();
+let attached = false;
+
+function dispatch(key: string) {
+  // Сначала общие: кеши модулей сбрасываются раньше, чем компоненты прочитают новое значение
+  for (const cb of allListeners) cb(key);
+  const forKey = keyListeners.get(key);
+  if (forKey) for (const cb of forKey) cb();
+}
+
+function attach() {
+  if (attached) return;
+  attached = true;
+  window.addEventListener(STORAGE_EVENT, (e) => dispatch((e as CustomEvent<string>).detail));
+  window.addEventListener("storage", (e) => e.key && dispatch(e.key));
+}
+
 /** Подписка на изменения: колбэк получает ключ. Возвращает отписку. */
 export function subscribe(cb: (key: string) => void): () => void {
-  const onLocal = (e: Event) => cb((e as CustomEvent<string>).detail);
-  const onOther = (e: StorageEvent) => e.key && cb(e.key);
-  window.addEventListener(STORAGE_EVENT, onLocal);
-  window.addEventListener("storage", onOther);
+  attach();
+  const entry = (key: string) => cb(key);
+  allListeners.add(entry);
   return () => {
-    window.removeEventListener(STORAGE_EVENT, onLocal);
-    window.removeEventListener("storage", onOther);
+    allListeners.delete(entry);
+  };
+}
+
+/** Подписка на один ключ: для карточек — запись других ключей их не затрагивает. */
+export function subscribeKey(key: string, cb: () => void): () => void {
+  attach();
+  const entry = () => cb();
+  let set = keyListeners.get(key);
+  if (!set) keyListeners.set(key, (set = new Set()));
+  set.add(entry);
+  return () => {
+    set.delete(entry);
   };
 }
 

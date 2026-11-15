@@ -4,36 +4,40 @@
  * на ПК — «Сообщество» (страница выбирается в выпадающем меню вкладки; на телефоне это раздел нижней панели),
  * «Рекомендации»,
  * дальше разделы библиотеки: загруженное, закладки, онлайн-избранное (после входа), история, теги.
- * Последняя открытая вкладка запоминается (`ui.home.tab`).
+ * Открытый раздел запоминается (`ui.home.tab`) — у каждой вкладки браузера свой, синхронизируется с другими устройствами.
+ * На ПК полоса вкладок — в заголовке окна (`DesktopChrome.tsx`), здесь только лента страниц.
  *
  * С `?query=` (результаты поиска) — одна лента с сортировкой из фильтров, как раньше.
  */
-import type { ReactNode } from "react";
+import { useEffect, useSyncExternalStore, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useBoundValue, useTabActive } from "../browser/tabs";
 import { CatalogFeed } from "../components/CatalogFeed";
 import { useI18n } from "../i18n/I18nContext";
 import { IS_DESKTOP } from "../lib/platform";
 import { useMe } from "../lib/session";
-import { getItem, setItem } from "../lib/storage";
+import { getItem, setItem, subscribeKey } from "../lib/storage";
 import { PageTabs, Pager, usePager } from "../ui";
 import { CommunityPage, useCommunityMenu } from "./CommunityScreen";
 import { FavoritesOnlineScreen } from "./FavoritesOnlineScreen";
-import { DownloadedScreen, NoteScreen, SavedScreen } from "./LibraryScreens";
+import { getDeskPager, HOME_TAB_KEY, homeTabs, setDeskPager } from "./homeTabs";
+import { DownloadedScreen, SavedScreen } from "./LibraryScreens";
+import { RecommendationsScreen } from "./RecommendationsScreen";
 import { TagsScreen } from "./TagsScreen";
 
-const TAB_KEY = "ui.home.tab";
+/** Страница, которой не важно, открыта ли она: один и тот же элемент, и React не считает её заново при смене вкладки. */
+const page = (node: ReactNode) => () => node;
 
-const TABS: { key: string; labelKey: string; needsLogin?: boolean; desktopOnly?: boolean; render: () => ReactNode }[] = [
-  { key: "latest", labelKey: "home.tabs.latest", render: () => <CatalogFeed /> },
-  // На телефоне сообщество — в нижней панели, на ПК её нет
-  { key: "community", labelKey: "nav.community", desktopOnly: true, render: () => <CommunityPage /> },
-  { key: "recommendations", labelKey: "menu.recommendations", render: () => <NoteScreen titleKey="menu.recommendations" textKey="notes.recommendations" /> },
-  { key: "downloaded", labelKey: "menu.downloaded", render: () => <DownloadedScreen /> },
-  { key: "favorites", labelKey: "menu.favorites", render: () => <SavedScreen kind="favorites" /> },
-  { key: "online", labelKey: "menu.favoritesOnline", needsLogin: true, render: () => <FavoritesOnlineScreen /> },
-  { key: "history", labelKey: "menu.history", render: () => <SavedScreen kind="history" /> },
-  { key: "tags", labelKey: "menu.tags", render: () => <TagsScreen /> },
-];
+const PAGES: Record<string, (active: boolean) => ReactNode> = {
+  latest: page(<CatalogFeed />),
+  community: page(<CommunityPage />),
+  recommendations: (active) => <RecommendationsScreen active={active} />,
+  downloaded: page(<DownloadedScreen />),
+  favorites: page(<SavedScreen kind="favorites" />),
+  online: page(<FavoritesOnlineScreen />),
+  history: page(<SavedScreen kind="history" />),
+  tags: page(<TagsScreen />),
+};
 
 export function HomeScreen() {
   const [params] = useSearchParams();
@@ -46,20 +50,40 @@ export function HomeScreen() {
 
 function HomePager({ loggedIn }: { loggedIn: boolean }) {
   const { t } = useI18n();
-  const tabs = TABS.filter((x) => (!x.needsLogin || loggedIn) && (!x.desktopOnly || IS_DESKTOP));
-  const saved = tabs.findIndex((x) => x.key === (getItem(TAB_KEY) ?? "latest"));
+  const tabs = homeTabs(loggedIn, IS_DESKTOP);
+  const saved = tabs.findIndex((x) => x.key === (getItem(HOME_TAB_KEY) ?? "latest"));
   const pager = usePager(tabs.length, saved >= 0 ? saved : tabs.findIndex((x) => x.key === "latest"));
   const communityMenu = useCommunityMenu();
 
+  // Раздел главной — свой у каждой вкладки и синхронизируется: сменили его на другом устройстве (или вернулись
+  // во вкладку) — лента переходит туда же. В скрытой вкладке значение не меняется (useBoundValue)
+  const wantKey = useBoundValue(useSyncExternalStore((cb) => subscribeKey(HOME_TAB_KEY, cb), () => getItem(HOME_TAB_KEY) ?? "latest"));
+  useEffect(() => {
+    const i = tabs.findIndex((x) => x.key === wantKey);
+    if (i >= 0 && i !== pager.indexRef.current) pager.goTo(i);
+  }, [wantKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ПК: полоса разделов в заголовке окна управляет лентой главной в выбранной вкладке браузера
+  const tabActive = useTabActive();
+  useEffect(() => {
+    if (!IS_DESKTOP || !tabActive) return;
+    setDeskPager(pager);
+    return () => {
+      if (getDeskPager() === pager) setDeskPager(null);
+    };
+  }, [pager, tabActive]);
+
   return (
     <div className="screen-fill ax-home">
-      <div className="ax-home-tabs">
-        <PageTabs
-          pager={pager}
-          tabs={tabs.map((x) => ({ key: x.key, label: t(x.labelKey), menu: x.key === "community" ? communityMenu : undefined }))}
-        />
-      </div>
-      <Pager pager={pager} count={tabs.length} onIndexChange={(i) => setItem(TAB_KEY, tabs[i].key)} render={(i) => tabs[i].render()} />
+      {!IS_DESKTOP && (
+        <div className="ax-home-tabs">
+          <PageTabs
+            pager={pager}
+            tabs={tabs.map((x) => ({ key: x.key, label: t(x.labelKey), menu: x.key === "community" ? communityMenu : undefined }))}
+          />
+        </div>
+      )}
+      <Pager pager={pager} count={tabs.length} onIndexChange={(i) => setItem(HOME_TAB_KEY, tabs[i].key)} render={(i, active) => PAGES[tabs[i].key](active)} />
     </div>
   );
 }

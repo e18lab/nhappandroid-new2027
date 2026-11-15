@@ -1,7 +1,7 @@
 {
   "name": "nhappandroid-new2027",
   "private": true,
-  "version": "1.5.4",
+  "version": "1.5.5",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "android:init": "node scripts/tauri-android.mjs init",
-    "android:dev": "node scripts/tauri-android.mjs dev",
+    "win-dev": "node scripts/dev.mjs win",
+    "android-dev": "node scripts/dev.mjs android",
     "android:build": "node scripts/tauri-android.mjs build --apk --debug",
     "android:release": "node scripts/tauri-android.mjs build --apk",
     "ota:keygen": "node scripts/ota-keygen.mjs",
@@ -20,6 +21,7 @@
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-deep-link": "^2.6.3",
     "@tauri-apps/plugin-dialog": "^2.8.4",
     "@tauri-apps/plugin-http": "^2.8.3",
     "@tauri-apps/plugin-opener": "^2",

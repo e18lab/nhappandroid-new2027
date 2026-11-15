@@ -66,6 +66,18 @@ export async function getBooksBatch(ids: number[], titleLocale?: string): Promis
   return { books: data.books ?? [], missing: data.missing ?? [] };
 }
 
+/** Выборка из библиотеки сервера: страницы, сортировка и фильтры (`tags`, `artists`, `search`, `min_pages`…). */
+export async function queryLibBooks(params: Record<string, string>): Promise<NappiBook[]> {
+  const res = await request(`/api/recommendation-lib/books?${new URLSearchParams(params)}`);
+  return ((await res.json()) as { books?: NappiBook[] }).books ?? [];
+}
+
+/** Сколько книг у каждого тега в библиотеке сервера (калибровка рекомендаций). */
+export async function lookupTagCounts(names: string[]): Promise<Record<string, number>> {
+  const res = await request("/api/recommendation-lib/tag-counts/lookup", { method: "POST", body: JSON.stringify({ names }) });
+  return ((await res.json()) as { counts?: Record<string, number> }).counts ?? {};
+}
+
 export type FullPassState = "idle" | "running" | "paused" | "done" | "error";
 
 /** Прогресс полного прохода каталога на сервере (`/api/recommendation-lib/full-pass`, только чтение). */

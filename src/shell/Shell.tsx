@@ -20,9 +20,9 @@
  * («основа») остаётся смонтированным и не меняется; переходы между страницами окна идут внутри него.
  * Закрывается окно стрелкой/крестиком, нажатием по затемнению или «Назад».
  *
- * ПК (по платформе, `lib/platform.ts`): окно без системной рамки — сверху свой заголовок окна с поиском и
- * кнопками окна, экраны — в скруглённой панели (`DesktopChrome.tsx`); разделы — вкладками главной.
- * Нижней панели и шапки разделов нет.
+ * ПК (по платформе, `lib/platform.ts`): браузер MoeLibre (`browser/DesktopBrowser.tsx`) — у каждой вкладки
+ * свой роутер и свой каркас (`embedded`): только панель с экранами, без заголовка окна (он общий,
+ * `DesktopChrome.tsx`) и без общих для окна вещей. Нижней панели и шапки разделов нет.
  */
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { UNSAFE_LocationContext, useLocation, useNavigate, useNavigationType, type Location, type NavigationType } from "react-router-dom";
@@ -32,13 +32,16 @@ import { IS_DESKTOP } from "../lib/platform";
 import { ownProfileRoute, useMe } from "../lib/session";
 import { AppHeader } from "./AppHeader";
 import { LoginHost, openLogin } from "./LoginModal";
+import { MlLoginHost } from "./MlLoginModal";
 import { Icon, OverlayScrollbar } from "../ui";
 import { useAndroidBack } from "./androidBack";
 import { BottomNav, navIndex } from "./BottomNav";
 import { DesktopTitleBar } from "./DesktopChrome";
 import { DownloadBanner, DownloadNotifier } from "./DownloadBanner";
 import { usePredictiveBack, useSwipeBack } from "./swipeBack";
+import { MobileTabBridge } from "../screens/TabsScreen";
 import { TopBar } from "./TopBar";
+import { isWindowRoute, WIDE_QUERY } from "./windowRoutes";
 
 /** Главные разделы и заголовки их шапки (у главной заголовка нет, у настроек нет самой шапки). */
 const ROOTS: Record<string, string | null> = { "/": null, "/community": "nav.community", "/settings": "menu.settings", "/me": "nav.profile" };
@@ -48,7 +51,7 @@ const EXIT_MS = 320;
 
 /** Где нижняя панель мешала бы: книга, читалка, поиск, комментарии, правка профиля по старому адресу. */
 function showNav(pathname: string): boolean {
-  if (/^\/(book|read|search)(\/|$)/.test(pathname)) return false;
+  if (/^\/(book|read)(\/|$)/.test(pathname)) return false;
   if (/^\/profile\/[^/]+\/[^/]+\/edit/.test(pathname)) return false;
   return true;
 }
@@ -61,9 +64,6 @@ function rootTitle(loc: Location, own: string): string | null | undefined {
   return loc.pathname in ROOTS ? ROOTS[loc.pathname] : undefined;
 }
 
-/** С какой ширины окна страницы-«окна» открываются поверх экрана, а не на весь экран. */
-const WIDE_QUERY = "(min-width: 720px)";
-
 function useWide(): boolean {
   const [wide, setWide] = useState(() => window.matchMedia(WIDE_QUERY).matches);
   useEffect(() => {
@@ -73,11 +73,6 @@ function useWide(): boolean {
     return () => mq.removeEventListener("change", on);
   }, []);
   return wide;
-}
-
-/** Страницы, которые на широком экране открываются окном: настройки, профили, выбор тегов. */
-function isWindowRoute(pathname: string): boolean {
-  return /^\/(settings|profile|tags)(\/|$)/.test(pathname);
 }
 
 type Motion = "open" | "close" | "tab-right" | "tab-left";
@@ -104,7 +99,17 @@ interface Layer {
   className: string;
 }
 
-export function Shell({ children }: { children: ReactNode }) {
+export function Shell({
+  children,
+  embedded = false,
+  active = true,
+}: {
+  children: ReactNode;
+  /** ПК: каркас одной вкладки браузера (`browser/DesktopBrowser.tsx`) — без заголовка окна и общих для окна вещей. */
+  embedded?: boolean;
+  /** Вкладка выбрана; невыбранная остаётся смонтированной, но не рисуется. */
+  active?: boolean;
+}) {
   const navigate = useNavigate();
   const location = useLocation();
   const navType = useNavigationType();
@@ -125,7 +130,7 @@ export function Shell({ children }: { children: ReactNode }) {
   useAndroidBack(() => false);
 
   // Обновления интерфейса по воздуху: проверка и фоновая загрузка при запуске (lib/ota.ts)
-  useEffect(() => startAutoUpdate(), []);
+  useEffect(() => (embedded ? undefined : startAutoUpdate()), [embedded]);
 
   // История адресов приложения — чтобы при свайпе показать, что под текущим экраном
   useLayoutEffect(() => {
@@ -226,6 +231,9 @@ export function Shell({ children }: { children: ReactNode }) {
   const windowLayers = layers.filter((l) => inWindow(l.location));
   const windowClosing = windowLayers.length > 0 && windowLayers.every((l) => l.className.includes("is-exit"));
 
+  const hiddenTab = embedded && !active ? " is-hidden-tab" : "";
+
+  if (reader && embedded) return <div className={`app-reader-body dk-tab-reader${hiddenTab}`}>{children}</div>;
   if (reader)
     return (
       <div className={IS_DESKTOP ? "app app-reader ax-desk" : "app app-reader"}>
@@ -235,13 +243,11 @@ export function Shell({ children }: { children: ReactNode }) {
       </div>
     );
 
-  return (
-    <div className={IS_DESKTOP ? "app ax-app ax-desk" : nav ? "app ax-app has-nav" : "app ax-app"}>
-      {IS_DESKTOP && <DesktopTitleBar />}
-      <div className="main">
+  const main = (
+      <div className={`main${hiddenTab}`}>
         <div className="top-chrome" />
-        <DownloadBanner />
-        <DownloadNotifier />
+        {active && <DownloadBanner />}
+        {!embedded && <DownloadNotifier />}
         <div ref={stack} className="ax-stack">
           {[...(wide && base ? [base] : []), ...(under ? [under] : []), ...plain].map((layer) =>
             renderLayer(layer, layer === base ? "is-base" : layer === top && layers.length === 1 ? "is-top" : layer.className),
@@ -256,9 +262,18 @@ export function Shell({ children }: { children: ReactNode }) {
           )}
         </div>
         {nav && <BottomNav />}
-        <OverlayScrollbar />
-        <LoginHost />
+        {active && <OverlayScrollbar />}
+        {!embedded && <LoginHost />}
+        {!embedded && <MlLoginHost />}
+        {!embedded && !IS_DESKTOP && <MobileTabBridge />}
       </div>
+  );
+  if (embedded) return main;
+
+  return (
+    <div className={IS_DESKTOP ? "app ax-app ax-desk" : nav ? "app ax-app has-nav" : "app ax-app"}>
+      {IS_DESKTOP && <DesktopTitleBar />}
+      {main}
     </div>
   );
 }

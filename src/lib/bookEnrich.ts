@@ -8,12 +8,13 @@
  *      на 429 вся очередь ждёт (Retry-After или нарастающая пауза), запрос не теряется.
  * Данные карточек хранятся между запусками (`@nh.bookCards.v1`, в облако не синхронизируется).
  */
-import { useEffect, useMemo, useState, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { galleryToBook, mergeBook, type Book } from "../api/book";
 import { ApiError } from "../api/client";
 import { getGallery } from "../api/galleries";
 import { getBooksBatch, type NappiBook } from "../api/nappi";
 import type { Tag } from "../api/types";
+import { whenIdle } from "./idle";
 import { tagById, toSingular, useTagsDbReady } from "./tagsDb";
 
 const BATCH_SIZE = 100;
@@ -105,16 +106,18 @@ let persistTimer = 0;
 function schedulePersist() {
   if (persistTimer) return;
   persistTimer = window.setTimeout(() => {
-    persistTimer = 0;
-    const all = [...cards.values()].slice(-PERSIST_MAX).map(pack);
-    for (let n = all.length; n > 0; n = Math.floor(n / 2)) {
-      try {
-        localStorage.setItem(PERSIST_KEY, JSON.stringify(all.slice(-n)));
-        return;
-      } catch {
-        /* не влезло — сохраняем вдвое меньше свежих */
+    whenIdle(() => {
+      persistTimer = 0;
+      const all = [...cards.values()].slice(-PERSIST_MAX).map(pack);
+      for (let n = all.length; n > 0; n = Math.floor(n / 2)) {
+        try {
+          localStorage.setItem(PERSIST_KEY, JSON.stringify(all.slice(-n)));
+          return;
+        } catch {
+          /* не влезло — сохраняем вдвое меньше свежих */
+        }
       }
-    }
+    });
   }, PERSIST_DELAY_MS);
 }
 
@@ -157,7 +160,7 @@ function makeBook(
   };
 }
 
-function nappiToBook(r: NappiBook): Book {
+export function nappiToBook(r: NappiBook): Book {
   const named = (list: string[] | null, type: string): Tag[] =>
     (list ?? []).filter(Boolean).map((name) => ({ id: 0, type, name: String(name) }));
   const tags = [
@@ -362,13 +365,39 @@ function withLocalTags(b: Book): Book {
   return next;
 }
 
+/**
+ * Один и тот же объект для одной и той же пары: иначе каждая догрузка давала бы всем карточкам списка
+ * новый `book`, и memo перерисовывал бы их все, а не только получившие данные.
+ */
+const merged = new WeakMap<Book, { full: Book; book: Book }>();
+
+function mergedBook(base: Book, full: Book): Book {
+  const hit = merged.get(base);
+  if (hit?.full === full) return hit.book;
+  const book = mergeBook(base, full);
+  merged.set(base, { full, book });
+  return book;
+}
+
 /** Список с подставленными полными данными; недостающие догружаются (см. шапку файла). */
 export function useEnrichedBooks(books: Book[]): Book[] {
   const [, bump] = useState(0);
   const tagsReady = useTagsDbReady();
+  const latest = useRef(books);
+  latest.current = books;
 
+  // Догрузка для других списков (скрытых вкладок) этот не трогает
   useEffect(() => {
-    const l = () => bump((n) => n + 1);
+    const seen = new Set<number>();
+    const l = () => {
+      let changed = false;
+      for (const b of latest.current) {
+        if (b.full || seen.has(b.id) || !has(b.id)) continue;
+        seen.add(b.id);
+        changed = true;
+      }
+      if (changed) bump((n) => n + 1);
+    };
     listeners.add(l);
     return () => {
       listeners.delete(l);
@@ -393,10 +422,10 @@ export function useEnrichedBooks(books: Book[]): Book[] {
       books.map((b) => {
         if (b.full) return b;
         const full = cache.get(b.id) ?? cards.get(b.id);
-        if (full) return mergeBook(b, full);
+        if (full) return mergedBook(b, full);
         return tagsReady && b.tagIds.length ? withLocalTags(b) : b;
       }),
-    // version растёт при каждой догрузке (а bump перерисовывает компонент)
+    // version растёт при каждой догрузке (а bump перерисовывает компонент, если она его касается)
     [books, version, tagsReady],
   );
 }

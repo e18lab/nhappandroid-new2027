@@ -20,7 +20,7 @@ function section(pathname: string): string {
 }
 
 /** Экраны без правых иконок (hideRight в старом). */
-const HIDE_RIGHT = new Set(["settings", "tags", "book", "profile", "community", "favorites", "favorites-online", "uikit"]);
+const HIDE_RIGHT = new Set(["mlid", "accounts", "tabs", "settings", "tags", "book", "profile", "community", "favorites", "favorites-online", "uikit", "image-search", "characters"]);
 
 export function TopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
   const { t } = useI18n();
@@ -55,6 +55,10 @@ export function TopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
         return t("menu.downloaded");
       case "recommendations":
         return t("menu.recommendations");
+      case "image-search":
+        return t("search.imageSearchResultsTitle");
+      case "characters":
+        return t("menu.characters");
       case "history":
         return t("menu.history");
       case "community":
@@ -73,10 +77,19 @@ export function TopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
         if (sub === "edit") return t("profile.edit.title");
         return me && String(me.id) === pid ? t("menu.profile") : decodeURIComponent(pslug ?? "");
       }
+      case "accounts":
+        return pathname.endsWith("/edit") ? t("profile.edit.title") : t("accounts.title");
+      case "tabs":
+        return t("tabs.title");
+      case "mlid": {
+        // Страницы облака: /mlid/cloud/data, /mlid/cloud/devices
+        const sub = pathname.split("/")[3];
+        return sub ? t(`mlcloud.${sub}`) : t("mlid.account");
+      }
       case "uikit":
         return t("uikit.title");
       default:
-        return "NHApp";
+        return "MoeLibre";
     }
   })();
 

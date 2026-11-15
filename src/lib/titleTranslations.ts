@@ -9,6 +9,7 @@ import { useEffect, useSyncExternalStore } from "react";
 import type { Book } from "../api/book";
 import { getBooksBatch } from "../api/nappi";
 import { useI18n } from "../i18n/I18nContext";
+import { whenIdle } from "./idle";
 import { useLangPref } from "./langPrefs";
 
 /** Языки, на которые сервер переводит названия. */
@@ -26,7 +27,6 @@ const missingAt = new Map<number, number>();
 const pending = new Set<number>();
 const inFlight = new Set<number>();
 const listeners = new Set<() => void>();
-let version = 0;
 let timer = 0;
 let persistTimer = 0;
 
@@ -38,19 +38,20 @@ try {
 }
 
 function notify() {
-  version++;
   for (const l of listeners) l();
 }
 
 function schedulePersist() {
   if (persistTimer) return;
   persistTimer = window.setTimeout(() => {
-    persistTimer = 0;
-    try {
-      localStorage.setItem(PERSIST_KEY, JSON.stringify([...titles].slice(-PERSIST_MAX)));
-    } catch {
-      /* не влезло — останется в памяти */
-    }
+    whenIdle(() => {
+      persistTimer = 0;
+      try {
+        localStorage.setItem(PERSIST_KEY, JSON.stringify([...titles].slice(-PERSIST_MAX)));
+      } catch {
+        /* не влезло — останется в памяти */
+      }
+    });
   }, PERSIST_DELAY_MS);
 }
 
@@ -99,17 +100,17 @@ const subscribe = (l: () => void) => {
     listeners.delete(l);
   };
 };
-const getVersion = () => version;
 
 /** Переведённое название книги на языке интерфейса или null (тогда показывать оригинал). */
 export function useTranslatedTitle(id: number): string | null {
   const { resolved } = useI18n();
   const on = useLangPref("titles") && LOCALES.has(resolved);
-  useSyncExternalStore(subscribe, getVersion);
+  // Сравнивается своё название, а не общий счётчик: пришедшая пачка перерисует только свои карточки
+  const title = useSyncExternalStore(subscribe, () => (on ? (titles.get(id) ?? null) : null));
   useEffect(() => {
     if (on) want(id, resolved);
   }, [on, id, resolved]);
-  return on ? (titles.get(id) ?? null) : null;
+  return title;
 }
 
 const CJK = /[぀-ヿ㐀-䶿一-鿿가-힯]/;
