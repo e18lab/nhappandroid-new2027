@@ -99,7 +99,7 @@ export function openTab(resource: string = DEFAULT_RESOURCE, path = "/", after?:
 /** Копия вкладки (тот же ресурс и адрес) сразу справа от неё. */
 export function duplicateTab(id: string): void {
   const tab = getTabs().find((t) => t.id === id);
-  if (tab) openTab(tab.resource, tab.path, id);
+  if (tab) openTab(tab.resource, tab.path, id, tab.account);
 }
 
 // Закрытые вкладки — чтобы вернуть их (Ctrl+Shift+T). Только на это устройство и до перезапуска.
@@ -139,6 +139,11 @@ export function closeTabsToRight(id: string): void {
   const tabs = getTabs();
   const at = tabs.findIndex((t) => t.id === id);
   removeTabs(new Set(tabs.slice(at + 1).filter((t) => !t.pinned).map((t) => t.id)));
+}
+
+/** Закрыть все незакреплённые («Очистить» в меню телефона); не осталось ни одной — новая пустая. */
+export function closeUnpinnedTabs(): void {
+  removeTabs(new Set(getTabs().filter((t) => !t.pinned).map((t) => t.id)));
 }
 
 export function canReopenTab(): boolean {
