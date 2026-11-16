@@ -91,9 +91,29 @@ export async function refreshNhLinks(): Promise<NhLinkedAccount[] | null> {
     // Старый сервис отдавал один аккаунт без списка
     const accounts = res.accounts ?? (res.linked && res.nhentai ? [{ ...res.nhentai, has_session: res.has_session }] : []);
     set({ accounts });
+    shareMissingKeys(accounts);
     return accounts;
   } catch {
     return state.accounts;
+  }
+}
+
+/** Ключи, которые уже пробовали отдать в привязку за этот запуск (`id:ключ`). */
+const keyShared = new Set<string>();
+
+/**
+ * Ключ есть на устройстве, а в привязке его нет (создан до привязки, до того как сервис начал хранить ключи,
+ * или привязку пересоздали) — отдать. Иначе другие устройства с этим MoeLibre ID просят ключ заново.
+ */
+function shareMissingKeys(accounts: NhLinkedAccount[]) {
+  for (const a of accounts) {
+    if (a.has_key) continue;
+    const key = nhLinkHooks.localKey?.(a.id);
+    if (!key || keyShared.has(`${a.id}:${key}`)) continue;
+    keyShared.add(`${a.id}:${key}`);
+    void pushNhKey(a.id, key)
+      .then(() => set({ accounts: (state.accounts ?? []).map((x) => (x.id === a.id ? { ...x, has_key: true } : x)) }))
+      .catch(() => undefined);
   }
 }
 
@@ -218,7 +238,11 @@ export async function unlinkBeforeNhLogout(): Promise<void> {
  * Можно ли самим войти в привязанный аккаунт (задаёт `browser/tabBinding.ts`): только если у выбранной вкладки
  * своего аккаунта нет. Иначе вкладка EvTs без входа (сессия устарела) тихо открывалась под другим аккаунтом.
  */
-export const nhLinkHooks: { canAutoSignIn?: () => boolean } = {};
+export const nhLinkHooks: {
+  canAutoSignIn?: () => boolean;
+  /** Ключ API аккаунта на этом устройстве (задаёт `nhAccounts.ts`). */
+  localKey?: (id: number) => string | undefined;
+} = {};
 
 /** Вошли в MoeLibre ID: узнать привязки и, если здесь nhentai нет, войти в последний использованный аккаунт. */
 async function onMlAccount(): Promise<void> {
