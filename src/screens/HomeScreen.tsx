@@ -9,7 +9,7 @@
  *
  * С `?query=` (результаты поиска) — одна лента с сортировкой из фильтров, как раньше.
  */
-import { useEffect, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useBoundValue, useTabActive } from "../browser/tabs";
 import { CatalogFeed } from "../components/CatalogFeed";
@@ -18,6 +18,7 @@ import { IS_DESKTOP } from "../lib/platform";
 import { useMe } from "../lib/session";
 import { getItem, setItem, subscribeKey } from "../lib/storage";
 import { PageTabs, Pager, usePager } from "../ui";
+import { PageBarPageActive, PageBarSlot, usePageBarSlot } from "../shell/PageBar";
 import { CommunityPage, useCommunityMenu } from "./CommunityScreen";
 import { FavoritesOnlineScreen } from "./FavoritesOnlineScreen";
 import { getDeskPager, HOME_TAB_KEY, homeTabs, setDeskPager } from "./homeTabs";
@@ -54,6 +55,10 @@ function HomePager({ loggedIn }: { loggedIn: boolean }) {
   const saved = tabs.findIndex((x) => x.key === (getItem(HOME_TAB_KEY) ?? "latest"));
   const pager = usePager(tabs.length, saved >= 0 ? saved : tabs.findIndex((x) => x.key === "latest"));
   const communityMenu = useCommunityMenu();
+  // Панель раздела (счётчик, сортировка…): на телефоне — строка под вкладками, на ПК — в панели окна
+  const parent = usePageBarSlot();
+  const [tabsBar, setTabsBar] = useState<HTMLElement | null>(null);
+  const slot = useMemo(() => ({ target: IS_DESKTOP ? parent.target : tabsBar, active: parent.active }), [parent.target, parent.active, tabsBar]);
 
   // Раздел главной — свой у каждой вкладки и синхронизируется: сменили его на другом устройстве (или вернулись
   // во вкладку) — лента переходит туда же. В скрытой вкладке значение не меняется (useBoundValue)
@@ -81,9 +86,17 @@ function HomePager({ loggedIn }: { loggedIn: boolean }) {
             pager={pager}
             tabs={tabs.map((x) => ({ key: x.key, label: t(x.labelKey), menu: x.key === "community" ? communityMenu : undefined }))}
           />
+          <div className="ax-home-bar" ref={setTabsBar} />
         </div>
       )}
-      <Pager pager={pager} count={tabs.length} onIndexChange={(i) => setItem(HOME_TAB_KEY, tabs[i].key)} render={(i, active) => PAGES[tabs[i].key](active)} />
+      <PageBarSlot value={slot}>
+        <Pager
+          pager={pager}
+          count={tabs.length}
+          onIndexChange={(i) => setItem(HOME_TAB_KEY, tabs[i].key)}
+          render={(i, active) => <PageBarPageActive value={active}>{PAGES[tabs[i].key](active)}</PageBarPageActive>}
+        />
+      </PageBarSlot>
     </div>
   );
 }

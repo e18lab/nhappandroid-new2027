@@ -42,16 +42,17 @@ export function updateBlacklist(params: { added?: number[]; removed?: number[] }
 
 // ─── Свой профиль: /user, /user/avatar, /user/keys ────────────────────────────
 
-let getMeInflight: Promise<Me> | null = null;
-
-/** GET /user — параллельные вызовы (старт, меню, хуки) делят один запрос. */
+/**
+ * GET /user — параллельные вызовы делят один запрос (это делает `nhApi.get`, с учётом токена: после
+ * переключения аккаунта новый вызов не получит ответ про прежний).
+ */
 export function getMe(): Promise<Me> {
-  if (!getMeInflight) {
-    getMeInflight = nhApi.get<Me>("/user").finally(() => {
-      getMeInflight = null;
-    });
-  }
-  return getMeInflight;
+  return nhApi.get<Me>("/user");
+}
+
+/** Профиль аккаунта по его сохранённой сессии (не текущей): для списка аккаунтов на устройстве. */
+export function getMeWithToken(access: string, apiKey?: string): Promise<Me> {
+  return nhApi.get<Me>("/user", { public: true, headers: { Authorization: apiKey ? `Key ${apiKey}` : `User ${access}` } });
 }
 
 export interface UpdateProfileParams {
@@ -85,8 +86,9 @@ export function listApiKeys(): Promise<ApiKey[]> {
   return nhApi.get("/user/keys");
 }
 
-export function createApiKey(name: string): Promise<ApiKey & { key: string }> {
-  return nhApi.post("/user/keys", { name });
+/** Новый ключ API (сессия, PoW `api_key` и капча обязательны). Сам ключ показывается только здесь. */
+export function createApiKey(params: { name: string; purpose?: string; pow_challenge: string; pow_nonce: string; captcha_response?: string }): Promise<{ id: string; key: string; name: string }> {
+  return nhApi.post("/user/keys", params);
 }
 
 export function revokeApiKey(keyId: string): Promise<SuccessResponse> {

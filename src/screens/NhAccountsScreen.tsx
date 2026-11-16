@@ -9,10 +9,11 @@ import { useNavigate } from "react-router-dom";
 import { useI18n } from "../i18n/I18nContext";
 import { MlError, useMl } from "../lib/mlid";
 import { linkNh, refreshNhLinks, unlinkNh, useNhLink } from "../lib/mlNhentai";
-import { forgetSession, useNhAccounts } from "../lib/nhAccounts";
+import { forgetSession, hasAccountKey, useNhAccounts } from "../lib/nhAccounts";
+import { ensureAccountKey } from "../lib/nhKey";
 import { signOut, useMe } from "../lib/session";
 import { openMlLogin } from "../shell/MlLoginModal";
-import { addNhAccountInNewTab, NhAvatar, openTabWithAccount } from "../shell/TabAccount";
+import { addNhAccountInNewTab, AuthStatus, NhAvatar, openTabWithAccount, useAccountAuth } from "../shell/TabAccount";
 import { Icon, Spinner, useToast } from "../ui";
 
 export function NhAccountsScreen() {
@@ -23,6 +24,7 @@ export function NhAccountsScreen() {
   const { account: ml } = useMl();
   const link = useNhLink();
   const accounts = useNhAccounts();
+  const authOf = useAccountAuth();
   const [arming, setArming] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -90,6 +92,12 @@ export function NhAccountsScreen() {
                     {here ? t("accounts.inTab") : a.local ? t("accounts.onDevice") : t("accounts.inMlOnly")}
                     {" · "}
                     {a.linked ? t("accounts.linkedMl") : t("accounts.notLinked")}
+                    {authOf(a.id) !== "unknown" && (
+                      <>
+                        {" · "}
+                        <AuthStatus auth={authOf(a.id)} />
+                      </>
+                    )}
                   </span>
                 </span>
                 {busy?.endsWith(`-${k}`) ? (
@@ -103,6 +111,23 @@ export function NhAccountsScreen() {
                     ) : (
                       <button type="button" className="ml-btn is-soft" onClick={() => open(a.id)}>
                         {t("accounts.openNewTab")}
+                      </button>
+                    )}
+                    {here && !hasAccountKey(a.id) && (
+                      <button
+                        type="button"
+                        className="ml-btn is-ghost"
+                        title={t("nhkey.keyOff")}
+                        onClick={() =>
+                          void run(`key-${k}`, async () => {
+                            const r = await ensureAccountKey({ title: t("nhkey.captchaTitle"), error: t("login.form.captchaFailed"), retry: t("common.retry"), cancel: t("common.cancel") });
+                            if (r === "ok" || r === "exists") toast.showToast({ title: t("nhkey.keyCreated"), type: "success" });
+                            else if (r === "no-session") toast.showToast({ title: t("nhkey.keyNoSession"), type: "error" });
+                            else if (r === "failed") toast.showToast({ title: t("nhkey.keyFailed"), type: "error" });
+                          })
+                        }
+                      >
+                        <Icon name="key" size={14} /> {t("nhkey.keyCreate")}
                       </button>
                     )}
                     {ml && !a.linked && here && (

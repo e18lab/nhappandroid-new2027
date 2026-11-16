@@ -3,9 +3,14 @@
  * Следующая страница запрашивается, когда низ списка подходит к экрану (IntersectionObserver).
  * Фильтры (язык, страницы, дата, теги) — общие из `browseFilters`; сортировку задаёт вкладка (`sort`),
  * без неё — сортировка из фильтров (результаты поиска). Каждая лента — со своей вертикальной прокруткой.
+ *
+ * Первая страница каждой ленты запоминается (в памяти и на устройстве, последние `FIRST_PAGE_KEEP`):
+ * при открытии она показывается сразу, а свежая подгружается поверх. Не загрузилось, а запомненное есть —
+ * остаётся оно, без экрана ошибки. Ошибка — лента сама пробует снова, когда сеть вернулась или окно снова видно.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
+import { TabIdContext } from "../browser/tabs";
+import { useLocation, useNavigate } from "react-router-dom";
 import { galleryCardToBook, type Book } from "../api/book";
 import { PER_PAGE } from "../api/galleries";
 import { fetchGalleryBrowsePaginated, totalFromPaginated } from "../api/galleryBrowse";
@@ -19,7 +24,61 @@ import { getPagesQuery, getSort, getTagFilters, getUploaded, setSort, setUploade
 import { KEYS, setJSON } from "../lib/storage";
 import { useStableCallback } from "../lib/useStableCallback";
 import { Button, LoadingSpinner, NoResultsPanel, Spinner } from "../ui";
+import { AccountNoticeSlot } from "../shell/AccountNotice";
 import { BookCollection } from "./BookCollection";
+
+type Paginated = Awaited<ReturnType<typeof fetchGalleryBrowsePaginated>>;
+
+const FIRST_PAGE_KEY = "@local.feed.firstPages.v1";
+const FIRST_PAGE_KEEP = 12;
+
+/** Ключ ленты: запрос, сортировка и все фильтры. */
+function feedKey(query: string, sort: SortOrder): string {
+  return JSON.stringify([query.trim(), sort, getTagFilters(), getPagesQuery(), getUploaded()]);
+}
+
+let firstPages: Record<string, { at: number; data: Paginated }> | null = null;
+function loadFirstPages() {
+  if (!firstPages) {
+    try {
+      firstPages = JSON.parse(localStorage.getItem(FIRST_PAGE_KEY) || "{}");
+    } catch {
+      firstPages = {};
+    }
+  }
+  return firstPages!;
+}
+function cachedFirstPage(key: string): Paginated | null {
+  return loadFirstPages()[key]?.data ?? null;
+}
+function rememberFirstPage(key: string, data: Paginated) {
+  const all = loadFirstPages();
+  all[key] = { at: Date.now(), data };
+  const keys = Object.keys(all).sort((a, b) => all[b].at - all[a].at);
+  for (const k of keys.slice(FIRST_PAGE_KEEP)) delete all[k];
+  try {
+    localStorage.setItem(FIRST_PAGE_KEY, JSON.stringify(all));
+  } catch {
+    /* место кончилось — останется в памяти */
+  }
+}
+
+/**
+ * Подгруженная лента по записи истории (`location.key` слоя) — вернулись назад на этот экран: та же лента
+ * со всеми подгруженными страницами, без запроса, и прокрутка восстанавливается (`Shell.tsx`). Только в памяти.
+ */
+interface FeedSnapshot {
+  books: Book[];
+  page: number;
+  totalPages: number;
+}
+const snapshots = new Map<string, FeedSnapshot>();
+const SNAPSHOT_KEEP = 24;
+function rememberSnapshot(key: string, snap: FeedSnapshot) {
+  snapshots.delete(key);
+  snapshots.set(key, snap);
+  while (snapshots.size > SNAPSHOT_KEEP) snapshots.delete(snapshots.keys().next().value!);
+}
 
 function fetchPage(query: string, page: number, sort: SortOrder) {
   const tags = getTagFilters();
@@ -37,6 +96,8 @@ function fetchPage(query: string, page: number, sort: SortOrder) {
 export function CatalogFeed({ query = "", sort: fixedSort }: { query?: string; sort?: SortOrder }) {
   const { t } = useI18n();
   const navigate = useNavigate();
+  // Запись истории этой вкладки (первая у каждой — «default», поэтому с номером вкладки)
+  const historyKey = `${useContext(TabIdContext) ?? ""}|${useLocation().key}`;
   const filters = useBrowseFilters();
   const sort = fixedSort ?? getSort();
 
@@ -48,6 +109,8 @@ export function CatalogFeed({ query = "", sort: fixedSort }: { query?: string; s
   const [retry, setRetry] = useState(0);
   const [moreError, setMoreError] = useState(false);
   const loadingMore = useRef(false);
+  // Фильтры, с которыми экран открыли: снимок ленты подходит только к ним
+  const openedWith = useRef(filters);
   const sentinel = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
 
@@ -56,24 +119,44 @@ export function CatalogFeed({ query = "", sort: fixedSort }: { query?: string; s
   const enriched = useEnrichedBooks(books);
   const visible = useMemo(() => (strict ? enriched.filter((b) => !isBookBlacklisted(b, blacklist)) : enriched), [enriched, blacklist, strict]);
 
-  // Первая страница — при смене фильтров, запроса или сортировки
+  // Первая страница — при смене фильтров, запроса или сортировки. Запомненная — сразу, свежая — поверх
   useEffect(() => {
     let cancelled = false;
-    setState("loading");
+    const key = feedKey(query, sort);
+    // Вернулись назад к этой записи истории — лента как была, без запроса (только при открытии экрана:
+    // смена фильтров дальше грузит заново)
+    const snap = retry === 0 && filters === openedWith.current ? snapshots.get(`${historyKey}|${key}`) : undefined;
+    if (snap) {
+      setBooks(snap.books);
+      setPage(snap.page);
+      setTotalPages(snap.totalPages);
+      setState("ready");
+      return;
+    }
+    const cached = cachedFirstPage(key);
+    const show = (data: Paginated) => {
+      rememberCards(data.result);
+      setBooks(data.result.map(galleryCardToBook));
+      setPage(1);
+      setTotalPages(Math.max(1, Math.ceil(totalFromPaginated(data) / PER_PAGE)));
+      setState(data.result.length ? "ready" : "empty");
+    };
     setMoreError(false);
-    scroller.current?.scrollTo({ top: 0 });
+    if (retry === 0) scroller.current?.scrollTo({ top: 0 });
+    if (cached?.result.length) show(cached);
+    else setState("loading");
     (async () => {
       try {
-        await initCdn();
-        const data = await fetchPage(query, 1, sort);
+        // Хосты CDN и страница — параллельно (initCdn почти не ждёт, см. media.ts)
+        const [data] = await Promise.all([fetchPage(query, 1, sort), initCdn()]);
         if (cancelled) return;
-        rememberCards(data.result);
-        setBooks(data.result.map(galleryCardToBook));
-        setPage(1);
-        setTotalPages(Math.max(1, Math.ceil(totalFromPaginated(data) / PER_PAGE)));
-        setState(data.result.length ? "ready" : "empty");
+        rememberFirstPage(key, data);
+        // Пока смотрели запомненное, не сбрасываем прокрутку и подгруженное дальше, если первая не поменялась
+        if (cached && JSON.stringify(cached.result.map((c) => c.id)) === JSON.stringify(data.result.map((c) => c.id))) return;
+        show(data);
       } catch (e) {
         if (cancelled) return;
+        if (cached?.result.length) return;
         setError(e);
         setState("error");
       }
@@ -82,6 +165,26 @@ export function CatalogFeed({ query = "", sort: fixedSort }: { query?: string; s
       cancelled = true;
     };
   }, [query, sort, filters, retry]);
+
+  // Ошибка — пробуем снова сами: сеть вернулась, окно снова на экране или просто через несколько секунд
+  useEffect(() => {
+    if (state !== "error") return;
+    const again = () => setRetry((n) => n + 1);
+    const onVisible = () => document.visibilityState === "visible" && again();
+    window.addEventListener("online", again);
+    document.addEventListener("visibilitychange", onVisible);
+    const timer = window.setTimeout(again, 4000);
+    return () => {
+      window.removeEventListener("online", again);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.clearTimeout(timer);
+    };
+  }, [state]);
+
+  // Запоминаем подгруженное для этой записи истории
+  useEffect(() => {
+    if (state === "ready" && books.length) rememberSnapshot(`${historyKey}|${feedKey(query, sort)}`, { books, page, totalPages });
+  }, [books, page, totalPages, state]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const hasMore = state === "ready" && page < totalPages;
 
@@ -100,6 +203,8 @@ export function CatalogFeed({ query = "", sort: fixedSort }: { query?: string; s
       setPage(next);
     } catch {
       setMoreError(true);
+      // Следующая страница не пришла — ещё раз сами, кнопка остаётся на всякий случай
+      window.setTimeout(() => setMoreError(false), 3000);
     } finally {
       loadingMore.current = false;
     }
@@ -155,6 +260,8 @@ export function CatalogFeed({ query = "", sort: fixedSort }: { query?: string; s
 
   return (
     <div ref={scroller} className="screen-scroll ax-feed">
+      {/* Сессия устарела / нет ключа API — карточка в начале ленты (листается вместе с ней) */}
+      <AccountNoticeSlot />
       {state === "loading" && <LoadingSpinner />}
       {state === "error" && (
         <div className="error-block">

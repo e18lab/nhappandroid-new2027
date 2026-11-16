@@ -2,15 +2,17 @@
  * Страница книги — перенос `app/book/[id]/index.tsx` + `_components/BookHeader.tsx`, `components/book/TagBlock.tsx`,
  * `PageItem.tsx`, `_components/RelatedSection.tsx` (релиз 1.3.1).
  *
- * Телефон: размытый баннер из обложки, поверх — обложка-карточка 72% ширины; ниже заголовки,
- * кнопки-пилюли (скачать · закладка · комментарии), «Читать» / «Продолжить со стр. N»,
- * Скачанная книга открывается с устройства (как useBookData в старом); кнопка скачивания —
+ * Страница ограничена по ширине (как лента каталога), за шапкой — размытая обложка:
+ *  - шапка: обложка и рядом (на телефоне — под ней) названия, переводчик и группы тегов;
+ *  - «Галерея»: строка из первых 15 страниц с прокруткой вбок и «+N» в конце; «Показать всё» — полная сетка
+ *    с выбором колонок;
+ *  - «Похожие» — строкой.
+ * Цифры (страниц · когда загружена · номер) — в верхней панели (`PageBar`); действия (скачать · закладка ·
+ * обсуждение · нравится с числом избранного) и «Читать» / «Продолжить» — плавающей панелью снизу.
+ * Скачанная книга открывается с устройства (как useBookData в старом); плитка скачивания —
  * «Скачать» → кольцо прогресса с отменой → корзина с подтверждением.
- * мета-строка, группы тегов, «Галерея» с переключателем колонок, сетка страниц
- * (сначала 24 ячейки и «Показать всё»), «Похожие» строкой, плавающая кнопка вверх/вниз.
- * Планшет/ПК: обложка слева, информация справа.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { galleryRelatedToBook, galleryToBook, type Book, type BookPage } from "../api/book";
 import { getCommentCount, getGallery, getRandomGalleryId, getRelatedGalleries } from "../api/galleries";
@@ -31,8 +33,14 @@ import { useMe } from "../lib/session";
 import { KEYS, getItem, setItem } from "../lib/storage";
 import { timeAgo } from "../lib/timeAgo";
 import { Button, Icon, LoadingSpinner, NhModal, Spinner, useToast } from "../ui";
+import { openLogin } from "../shell/LoginModal";
+import { PageBar } from "../shell/PageBar";
+import { cachedCharacterCatalog, getCharacterCatalog, type CharacterCatalogItem } from "../api/community";
+import { CroppedImage } from "./CharactersScreen";
 
 const PAGE_GAP = 10;
+/** Сколько страниц в строке предпросмотра галереи. */
+const STRIP_COUNT = 15;
 
 function fmtNum(n: number): string {
   if (!n || n <= 0) return "0";
@@ -58,19 +66,18 @@ function useWide() {
   return wide;
 }
 
-/** Колонки галереи (`galleryColumns`): по умолчанию 1 на телефоне, 3 на широком; цикл до 3 / 4. */
+/** Колонки галереи (`galleryColumns`): по умолчанию 1 на телефоне, 3 на широком; до 3 / 4. */
 function useColumns(wide: boolean) {
   const [cols, setCols] = useState(() => {
     const saved = Math.min(Math.max(parseInt(getItem(KEYS.galleryColumns) ?? "0") || 0, 1), 4);
     return saved || (wide ? 3 : 1);
   });
-  const cycle = () =>
-    setCols((c) => {
-      const n = c >= (wide ? 4 : 3) ? 1 : c + 1;
-      setItem(KEYS.galleryColumns, String(n));
-      return n;
-    });
-  return { cols, cycle };
+  const max = wide ? 4 : 3;
+  const choose = (n: number) => {
+    setItem(KEYS.galleryColumns, String(n));
+    setCols(n);
+  };
+  return { cols: Math.min(cols, max), max, choose };
 }
 
 const NO_TITLE = { english: "", japanese: "", pretty: "" };
@@ -85,7 +92,7 @@ export function BookScreen() {
   const galleryId = Number(id);
   const fromRandom = params.get("random") === "1";
   const wide = useWide();
-  const { cols, cycle: cycleCols } = useColumns(wide);
+  const { cols, max: maxCols, choose: chooseCols } = useColumns(wide);
 
   const [book, setBook] = useState<Book | null>(() => cachedFullBook(galleryId) ?? null);
   // Заголовок: перевод / английское / оригинал — по настройке «Названия книг на языке интерфейса»
@@ -94,6 +101,9 @@ export function BookScreen() {
   const [fav, setFav] = useState(() => isFavorite(galleryId));
   const me = useMe();
   const online = useOnlineFavorite(galleryId, !!me);
+  // Число избранного пришло с книгой — поставили / сняли «нравится» здесь, число сразу ±1
+  const likedAtLoad = useRef<boolean | null>(null);
+  if (likedAtLoad.current === null && me && !online.loading) likedAtLoad.current = online.liked;
   const [comments, setComments] = useState(0);
   const [related, setRelated] = useState<Book[]>([]);
   const [relLoading, setRelLoading] = useState(true);
@@ -102,12 +112,44 @@ export function BookScreen() {
   const [fab, setFab] = useState<{ visible: boolean; dir: "up" | "down" }>({ visible: false, dir: "down" });
   const [rndLoading, setRndLoading] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
+  const pageRef = useRef<HTMLDivElement>(null);
   const lastY = useRef(0);
   const relatedEnriched = useEnrichedBooks(related);
   const [isLocal, setIsLocal] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const dl = useDownloadState();
   const downloading = dl.active && dl.bookId === galleryId;
+  const tagLabel = useTagLabel();
+  // Персонажи книги, у которых есть карточка в базе MoeLibre (каталог сообщества) — под обложкой
+  const [catalog, setCatalog] = useState<CharacterCatalogItem[] | null>(() => cachedCharacterCatalog());
+  useEffect(() => {
+    if (catalog) return;
+    let alive = true;
+    getCharacterCatalog()
+      .then((list) => alive && setCatalog(list))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const characters = useMemo(() => {
+    if (!book?.characters.length || !catalog) return [];
+    const norm = (x: string) => x.normalize("NFKC").toLowerCase().trim();
+    const byName = new Map<string, CharacterCatalogItem[]>();
+    for (const item of catalog) {
+      if (!item.imageUrl || !item.rect) continue;
+      const key = norm(item.characterName);
+      byName.set(key, [...(byName.get(key) ?? []), item]);
+    }
+    // Тёзки из разных пародий — берём карточку пародии этой книги
+    const parodies = new Set(book.parodies.map((p) => norm(p.name)));
+    return book.characters.flatMap((tag) => {
+      const items = byName.get(norm(tag.name));
+      if (!items) return [];
+      const item = items.find((i) => i.parodyName && parodies.has(norm(i.parodyName))) ?? items[0];
+      return [{ tag, item }];
+    });
+  }, [book, catalog]);
 
   useEffect(() => {
     let cancelled = false;
@@ -115,6 +157,7 @@ export function BookScreen() {
     setShowAll(false);
     setFav(isFavorite(galleryId));
     setIsLocal(false);
+    likedAtLoad.current = null;
     const cached = cachedFullBook(galleryId);
     setBook(cached ?? null);
     scroller.current?.scrollTo({ top: 0 });
@@ -198,34 +241,32 @@ export function BookScreen() {
     showToast({ title: ok ? t("downloads.deleted") : t("downloads.notFound"), type: ok ? "success" : "error" });
   };
 
+  // Ширина содержимого страницы (без полей) — для сетки страниц и карточек «Похожих»
   useEffect(() => {
-    const el = scroller.current;
+    const el = pageRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => setWidth(Math.floor(el.getBoundingClientRect().width)));
+    const measure = () => {
+      const cs = getComputedStyle(el);
+      setWidth(Math.floor(el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)));
+    };
+    const ro = new ResizeObserver(measure);
     ro.observe(el);
-    setWidth(Math.floor(el.getBoundingClientRect().width));
+    measure();
     return () => ro.disconnect();
   }, [book !== null]);
 
   const progress = book ? getReadProgress(book.id) : null;
   const readBtn = (() => {
-    if (!book || !progress) return { label: t("book.read"), page: 1, restart: false };
+    if (!book || !progress) return { label: t("book.read"), page: 1, restart: false, sub: "", pct: 0 };
     const total = Math.max(1, progress.total || book.pagesCount || 1);
     const current = Math.min(progress.current, total - 1);
-    if (current >= total - 1) return { label: t("book.readAgain"), page: 1, restart: true };
-    return { label: t("book.continuePage", { page: current + 1 }), page: current + 1, restart: false };
+    if (current >= total - 1) return { label: t("book.readAgain"), page: 1, restart: true, sub: "", pct: 0 };
+    // Продолжить: подпись короткая, страница — числом «12 / 39», прочитанное — полоской по низу кнопки
+    return { label: t("bookx.continue"), page: current + 1, restart: false, sub: `${current + 1} / ${total}`, pct: ((current + 1) / total) * 100 };
   })();
 
-  const innerPadding = wide ? 16 : 12;
-  const horizPad = Math.max(0, innerPadding - PAGE_GAP / 2);
-  const pagesShown = useMemo(() => {
-    if (!book) return [];
-    if (showAll) return book.pages;
-    return book.pages.slice(0, Math.floor(24 / cols) * cols);
-  }, [book, cols, showAll]);
-
   const itemW = (() => {
-    const avail = Math.max(100, width - 2 * horizPad);
+    const avail = Math.max(100, width);
     if (cols === 1) return avail;
     return Math.max(100, Math.min(Math.floor((avail - (cols - 1) * PAGE_GAP) / cols), avail));
   })();
@@ -300,86 +341,87 @@ export function BookScreen() {
     </>
   );
 
+  // Действия — плитки: значок и подпись (ряд под «Читать»)
   const actions = (
-    <div className="book-pills">
+    <div className="book-acts">
       {downloading ? (
-        <button type="button" className="book-pill is-active" aria-label={t("book.cancelDownload")} onClick={() => void cancelDownload(book.id)}>
+        <button type="button" className="book-act is-on" onClick={() => void cancelDownload(book.id)}>
           <span className="dl-ring">
-            <Ring progress={dl.progress} size={20} />
+            <Ring progress={dl.progress} size={22} />
             <Icon name="x" size={10} />
           </span>
+          <span>{Math.round((dl.progress || 0) * 100)}%</span>
         </button>
       ) : isLocal ? (
-        <button type="button" className="book-pill is-active" aria-label={t("book.removeDownload")} onClick={() => setConfirmDelete(true)}>
-          <Icon name="trash-2" size={15} />
+        <button type="button" className="book-act is-on" aria-label={t("book.removeDownload")} title={t("bookx.downloaded")} onClick={() => setConfirmDelete(true)}>
+          <Icon name="check-circle" size={20} />
+          <span className="book-act-label">{t("bookx.downloaded")}</span>
         </button>
       ) : (
-        <button type="button" className="book-pill" aria-label={t("book.download")} disabled={!book.pages.length} onClick={() => void startDownload()}>
-          <Icon name="download" size={15} />
+        <button type="button" className="book-act" title={t("bookx.download")} aria-label={t("bookx.download")} disabled={!book.pages.length} onClick={() => void startDownload()}>
+          <Icon name="download" size={20} />
+          <span className="book-act-label">{t("bookx.download")}</span>
         </button>
       )}
+      <button type="button" className={fav ? "book-act is-bookmarked" : "book-act"} aria-pressed={fav} title={fav ? t("book.inFavorites") : t("book.addFavorite")} aria-label={fav ? t("book.inFavorites") : t("book.addFavorite")} onClick={() => setFav(toggleFavorite(book.id))}>
+        <Icon name="bookmark" size={20} solid={fav} />
+        <span className="book-act-label">{fav ? t("book.inFavorites") : t("book.addFavorite")}</span>
+      </button>
+      <button type="button" className="book-act" title={t("bookx.comments")} aria-label={t("bookx.comments")} onClick={() => navigate(`/book/${book.id}/comments?title=${encodeURIComponent(book.title.pretty)}`)}>
+        <Icon name="message-square" size={20} />
+        <span className={comments > 0 ? undefined : "book-act-label"}>{comments > 0 ? fmtNum(comments) : t("bookx.comments")}</span>
+      </button>
+      {/* «Нравится» и число избранного nhentai — одно и то же: число прямо на кнопке. Без входа — окно входа */}
       <button
         type="button"
-        className={`book-pill${wide ? "" : " book-pill-stretch"}${fav ? " is-bookmarked" : ""}`}
-        aria-label={t("menu.favorites")}
-        aria-pressed={fav}
-        onClick={() => setFav(toggleFavorite(book.id))}
+        className={me && online.liked ? "book-act is-liked" : "book-act"}
+        aria-label={t("bookx.like")}
+        title={t("bookx.like")}
+        aria-pressed={!!me && online.liked}
+        disabled={!!me && online.loading}
+        onClick={() => (me ? void online.toggle() : openLogin())}
       >
-        <Icon name="bookmark" size={15} />
+        {me && online.loading ? <Spinner size={20} /> : <Icon name="heart" size={20} solid={!!me && online.liked} />}
+        <span>{fmtNum(book.favorites + (likedAtLoad.current !== null && online.liked !== likedAtLoad.current ? (online.liked ? 1 : -1) : 0))}</span>
       </button>
-      <button
-        type="button"
-        className="book-pill"
-        aria-label={t("comments.title")}
-        onClick={() => navigate(`/book/${book.id}/comments?title=${encodeURIComponent(book.title.pretty)}`)}
-      >
-        <Icon name="message-square" size={15} />
-        {comments > 0 && <span className="book-pill-text">{fmtNum(comments)}</span>}
-      </button>
-      {!!me && (
-        <button
-          type="button"
-          className={`book-pill book-pill-like${online.liked ? " is-liked" : ""}`}
-          aria-label={t("menu.favoritesOnline")}
-          aria-pressed={online.liked}
-          disabled={online.loading}
-          onClick={() => void online.toggle()}
-        >
-          {online.loading ? <Spinner size={14} /> : <Icon name="heart" size={14} solid={online.liked} />}
-          <span className="book-pill-text">{fmtNum(book.favorites)}</span>
-        </button>
-      )}
     </div>
   );
 
   const readRow = (
-    <button type="button" className="book-read" onClick={() => openReader(readBtn.page)}>
+    <button type="button" className={readBtn.sub ? "book-read has-sub" : "book-read"} onClick={() => openReader(readBtn.page)}>
       <Icon name={readBtn.restart ? "rotate-ccw" : "book-open"} size={18} />
-      <span>{readBtn.label}</span>
+      <span className="book-read-label">{readBtn.label}</span>
+      {readBtn.sub && <span className="book-read-sub">{readBtn.sub}</span>}
+      {readBtn.pct > 0 && <i className="book-read-progress" style={{ width: `${readBtn.pct}%` }} />}
     </button>
   );
 
+  // Цифры книги — коротко в строке заголовка (вверху), номер копируется нажатием
+  const headInfo = (
+    <div className="book-headinfo">
+      <span title={t("bookx.statPages")}>
+        <Icon name="file-text" size={14} />
+        {book.pagesCount}
+      </span>
+      <span title={t("bookx.statUploaded")}>
+        <Icon name="clock" size={14} />
+        {book.uploaded ? timeAgo(book.uploaded, resolved) : "—"}
+      </span>
+      <button type="button" className="book-headinfo-id" title={t("bookx.statId")} onClick={() => copy(String(book.id))}>
+        <Icon name="hash" size={14} />
+        {book.id}
+      </button>
+    </div>
+  );
   const meta = (
-    <div className="book-meta">
-      <div className="book-meta-row">
-        <Icon name="hash" size={13} />
-        <span onContextMenu={() => copy(String(book.id))}>{book.id}</span>
-        <span className="book-meta-dot">·</span>
-        <Icon name="calendar" size={13} />
-        <span>{book.uploaded ? timeAgo(book.uploaded, resolved) : "—"}</span>
-        <span className="book-meta-dot">·</span>
-        <Icon name="book-open" size={13} />
-        <span>
-          {book.pagesCount} {t("book.pages")}
-        </span>
-      </div>
+    <>
       {book.scanlator && (
-        <div className="book-meta-row">
+        <div className="book-meta-row book-scanlator">
           <Icon name="edit-3" size={13} />
           <span>Scanlated by {book.scanlator}</span>
         </div>
       )}
-    </div>
+    </>
   );
 
   const tagBlocks = (
@@ -394,104 +436,133 @@ export function BookScreen() {
     </>
   );
 
-  const galleryRow = (
-    <div className="book-gallery-row">
-      <span className="book-gallery-label">{t("book.gallery")}</span>
-      <button type="button" className="book-layout-btn" onClick={cycleCols}>
-        <Icon name="layout" size={17} />
-        <span>{cols}×</span>
-      </button>
+  // Выбор колонок — только для полной сетки страниц
+  const colsPicker = (
+    <div className="book-cols" role="radiogroup" aria-label={t("bookx.columns")}>
+      {Array.from({ length: maxCols }, (_, i) => i + 1).map((n) => (
+        <button key={n} type="button" role="radio" aria-checked={cols === n} className={cols === n ? "is-on" : undefined} onClick={() => chooseCols(n)}>
+          {n}
+        </button>
+      ))}
     </div>
   );
 
-  const contentW = width - innerPadding * 2;
-  const cardW = contentW * 0.72;
+  const pagesTotal = book.pages.length || book.pagesCount;
+  const strip = book.pages.slice(0, STRIP_COUNT);
+  // «Похожие»: на широком экране — целое число карточек во всю ширину (листаются стрелками), на телефоне — с краем
+  // следующей, чтобы было видно, что строка листается
+  const relatedW = wide ? (() => {
+    const n = Math.max(2, Math.floor((width + 12) / (196 + 12)));
+    return Math.floor((width - 12 * (n - 1)) / n);
+  })() : Math.max(150, Math.min(200, (width - 12) / 2.2));
 
   return (
     <div className="screen-fill book-screen">
+      {/* Цифры книги — в верхней панели (строка заголовка), а не в ленте */}
+      <PageBar>{headInfo}</PageBar>
       <div ref={scroller} className="screen-scroll" onScroll={onScroll}>
-        {wide ? (
-          <div className="book-wide" style={{ padding: `20px ${innerPadding}px 8px` }}>
-            <button
-              type="button"
-              className="book-wide-cover"
-              style={{ width: Math.min(280, window.innerWidth * 0.26), aspectRatio: String(coverAR) }}
-              onClick={() => openReader(readBtn.page)}
-            >
-              <SmartImage sources={thumbSources(book.cover)} eager />
-            </button>
-            <div className="book-wide-info">
-              {titles}
-              {actions}
-              {readRow}
-              {meta}
-              {tagBlocks}
-              {galleryRow}
-            </div>
-          </div>
-        ) : (
-          <div className="book-mobile-header" style={{ padding: `0 ${innerPadding}px` }}>
-            <div className="book-banner" style={{ width, marginLeft: -innerPadding, aspectRatio: String(coverAR) }}>
-              <SmartImage sources={thumbSources(book.cover)} eager showLoader={false} />
-              <div className="book-banner-dim" />
-            </div>
-            <button
-              type="button"
-              className="book-mobile-card"
-              style={{
-                left: innerPadding + (contentW - cardW) / 2,
-                top: contentW * 0.08,
-                width: cardW,
-                height: cardW / coverAR,
-              }}
-              onClick={() => openReader(readBtn.page)}
-            >
-              <SmartImage sources={thumbSources(book.cover)} eager />
-            </button>
-            <div className="book-mobile-content" style={{ marginTop: cardW / coverAR + contentW * 0.08 + 14 - width / coverAR }}>
-              {titles}
-              {actions}
-              {readRow}
-              {meta}
-              {tagBlocks}
-              {galleryRow}
-            </div>
-          </div>
-        )}
-
-        <div className="book-pages" style={{ padding: `0 ${horizPad}px`, gap: cols > 1 ? 0 : undefined }}>
-          {pagesShown.map((p) => (
-            <PageItem key={p.page} page={p} itemW={itemW} cols={cols} onOpen={openReader} />
-          ))}
+        {/* Размытая обложка за шапкой страницы — уходит в фон */}
+        <div className="bk-backdrop" aria-hidden>
+          <SmartImage sources={thumbSources(book.cover)} eager showLoader={false} />
         </div>
-
-        {!showAll && pagesShown.length < book.pages.length && (
-          <div className="book-show-all" style={{ padding: `20px ${horizPad}px` }}>
-            <button type="button" onClick={() => setShowAll(true)}>
-              {t("book.showAll")}
-            </button>
-          </div>
-        )}
-
-        <div className="book-related">
-          <div className="book-related-label" style={{ padding: `0 ${innerPadding}px` }}>
-            {t("related")}
-          </div>
-          {relLoading ? (
-            <LoadingSpinner />
-          ) : (
-            <div className="book-related-row" style={{ padding: `0 ${innerPadding * 1.9}px` }}>
-              {relatedEnriched.map((b) => (
-                <BookCard
-                  key={b.id}
-                  book={b}
-                  cardWidth={Math.max(180, Math.min(220, (width - innerPadding * 3.8) / 2))}
-                  onPress={(x) => navigate(`/book/${x.id}?title=${encodeURIComponent(x.title.pretty)}`)}
-                />
-              ))}
+        <div ref={pageRef} className="bk-page">
+          <section className="bk-hero">
+            <div className="bk-side">
+              <button type="button" className="bk-cover" style={{ aspectRatio: String(coverAR) }} onClick={() => openReader(readBtn.page)}>
+                <SmartImage sources={thumbSources(book.cover)} eager />
+              </button>
+              {/* Персонажи с карточкой в базе — под обложкой (на телефоне — после тегов); нажатие — поиск по персонажу */}
+              {characters.length > 0 && (
+                <div className="bk-chars">
+                  <div className="bk-chars-label">{t("tags.characters")}</div>
+                  <div className="bk-chars-grid">
+                    {characters.map(({ tag, item }) => (
+                      <button key={tag.name} type="button" className="bk-char" title={item.parodyName ?? undefined} onClick={() => onTagPress(tag)}>
+                        <span className="bk-char-img">
+                          <CroppedImage url={item.imageUrl} rect={item.rect} />
+                        </span>
+                        <span className="bk-char-name">{tagLabel(tag.type, tag.name)}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
+            <div className="bk-info">
+              {titles}
+              {meta}
+              {tagBlocks}
+            </div>
+          </section>
+
+          {/* Галерея: строка из первых 15 страниц, «Все страницы» — полная сетка с выбором колонок */}
+          {pagesTotal > 0 && (
+            <section className="bk-section">
+              <div className="bk-sec-head">
+                <h2>
+                  {t("book.gallery")}
+                  <span>{pagesTotal}</span>
+                </h2>
+                {showAll && colsPicker}
+                {book.pages.length > STRIP_COUNT && (
+                  <button type="button" className="bk-sec-btn" onClick={() => setShowAll((v) => !v)}>
+                    {showAll ? t("common.hide") : t("book.showAll")}
+                    <Icon name={showAll ? "chevron-up" : "chevron-right"} size={16} />
+                  </button>
+                )}
+              </div>
+              {showAll ? (
+                <div className="book-pages" style={{ gap: cols > 1 ? 0 : undefined, margin: cols > 1 ? `0 -${PAGE_GAP / 2}px` : undefined }}>
+                  {book.pages.map((p) => (
+                    <PageItem key={p.page} page={p} itemW={itemW} cols={cols} onOpen={openReader} />
+                  ))}
+                </div>
+              ) : (
+                <Shelf className="bk-strip">
+                  {strip.map((p) => (
+                    <button
+                      key={p.page}
+                      type="button"
+                      className="bk-thumb"
+                      style={{ aspectRatio: `${p.width || 1} / ${Math.min(p.height || 1.4, (p.width || 1) * 2)}` }}
+                      onClick={() => openReader(p.page)}
+                    >
+                      <SmartImage sources={p.thumb ? thumbSources(p.thumb) : pageSources(p.path)} />
+                      <span className="bk-thumb-num">{p.page}</span>
+                    </button>
+                  ))}
+                  {book.pages.length > STRIP_COUNT && (
+                    <button type="button" className="bk-thumb bk-thumb-more" onClick={() => setShowAll(true)}>
+                      <b>+{book.pages.length - STRIP_COUNT}</b>
+                      <span>{t("book.showAll")}</span>
+                    </button>
+                  )}
+                </Shelf>
+              )}
+            </section>
           )}
+
+          <section className="bk-section">
+            <div className="bk-sec-head">
+              <h2>{t("related")}</h2>
+            </div>
+            {relLoading ? (
+              <LoadingSpinner />
+            ) : (
+              <Shelf className="bk-related">
+                {relatedEnriched.map((b) => (
+                  <BookCard key={b.id} book={b} cardWidth={relatedW} onPress={(x) => navigate(`/book/${x.id}?title=${encodeURIComponent(x.title.pretty)}`)} />
+                ))}
+              </Shelf>
+            )}
+          </section>
         </div>
+      </div>
+
+      {/* Действия и «Читать» — плавающая панель снизу (выезжает при открытии книги) */}
+      <div className="book-dock">
+        {actions}
+        {readRow}
       </div>
 
       <button
@@ -538,13 +609,53 @@ export function BookScreen() {
   );
 }
 
+/**
+ * Витрина — строка с прокруткой вбок. На ПК без полосы прокрутки: по бокам стрелки (при наведении), листают
+ * на ширину строки; края строки, за которыми есть ещё, плавно затухают. На телефоне — листается пальцем.
+ */
+function Shelf({ className, children }: { className: string; children: ReactNode }) {
+  const { t } = useI18n();
+  const row = useRef<HTMLDivElement>(null);
+  const [edge, setEdge] = useState({ start: true, end: true });
+  const update = useCallback(() => {
+    const el = row.current;
+    if (!el) return;
+    const start = el.scrollLeft <= 2;
+    const end = el.scrollLeft + el.clientWidth >= el.scrollWidth - 2;
+    setEdge((e) => (e.start === start && e.end === end ? e : { start, end }));
+  }, []);
+  useEffect(() => {
+    const el = row.current;
+    if (!el) return;
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    update();
+    return () => ro.disconnect();
+  }, [update]);
+  useEffect(update, [children, update]);
+  const page = (dir: 1 | -1) => row.current?.scrollBy({ left: dir * Math.max(200, row.current.clientWidth * 0.86), behavior: "smooth" });
+  return (
+    <div className={`bk-shelf${edge.start ? " at-start" : ""}${edge.end ? " at-end" : ""}`}>
+      <div ref={row} className={className} onScroll={update}>
+        {children}
+      </div>
+      <button type="button" className="bk-shelf-arrow is-prev" aria-label={t("common.back")} onClick={() => page(-1)}>
+        <Icon name="chevron-left" size={22} />
+      </button>
+      <button type="button" className="bk-shelf-arrow is-next" aria-label={t("common.nextPage")} onClick={() => page(1)}>
+        <Icon name="chevron-right" size={22} />
+      </button>
+    </div>
+  );
+}
+
 /** Группа тегов — TagBlock: «Метка:», капсулы с числом и кнопкой цикла фильтра. */
 function TagBlock({ label, tags, onTagPress }: { label: string; tags: Tag[]; onTagPress: (tag: Tag) => void }) {
   const tagLabel = useTagLabel();
   if (!tags.length) return null;
   return (
     <div className="tag-block">
-      <div className="tag-block-label">{label}:</div>
+      <div className="tag-block-label">{label}</div>
       <div className="tag-block-wrap">
         {tags.map((tag) => {
           const mode = tagMode(tag.type, tag.name);

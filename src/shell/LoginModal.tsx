@@ -16,45 +16,59 @@ import { ApiError } from "../api/client";
 import { getCaptchaInfo, getPowChallenge, solvePoW } from "../api/config";
 import { useI18n } from "../i18n/I18nContext";
 import { linkAfterNhLogin } from "../lib/mlNhentai";
-import { captchaSupported, refreshMe, requestCaptcha } from "../lib/session";
+import { ensureAccountKey } from "../lib/nhKey";
+import { captchaSupported, confirmSignedInHere, refreshMe, requestCaptcha } from "../lib/session";
 import { Icon, Spinner } from "../ui";
 import { useBackHandler } from "./androidBack";
 
 type AuthMode = "login" | "register" | "reset";
 const MODES: AuthMode[] = ["login", "register", "reset"];
 
-let openListener: (() => void) | null = null;
+let openListener: ((username?: string) => void) | null = null;
+/** Ник, который подставить в поле (вход в конкретный аккаунт — «сессия устарела»). */
+let pendingUser: string | undefined;
 /** Попросили открыть раньше, чем смонтировался `LoginHost` (эффекты экранов идут до эффектов Shell). */
 let openPending = false;
 
 /** Открыть окно входа откуда угодно (профиль гостя в панели, заголовке окна, шапке) — его держит `LoginHost` в Shell. */
-export function openLogin() {
-  if (openListener) openListener();
-  else openPending = true;
+export function openLogin(username?: string) {
+  if (openListener) openListener(username);
+  else {
+    openPending = true;
+    pendingUser = username;
+  }
 }
 
 /** Одно окно входа на всё приложение, открывается через `openLogin()`. */
 export function LoginHost() {
   const [open, setOpen] = useState(false);
+  const [user, setUser] = useState<string | undefined>();
   useEffect(() => {
-    openListener = () => setOpen(true);
+    openListener = (u) => {
+      setUser(u);
+      setOpen(true);
+    };
     if (openPending) {
       openPending = false;
+      setUser(pendingUser);
       setOpen(true);
     }
     return () => {
       openListener = null;
     };
   }, []);
-  return <LoginModal visible={open} onClose={() => setOpen(false)} />;
+  return <LoginModal visible={open} presetUsername={user} onClose={() => setOpen(false)} />;
 }
 
 export function LoginModal({
   visible,
   onClose,
+  presetUsername,
 }: {
   visible: boolean;
   onClose: () => void;
+  /** Ник аккаунта, в который входят (подставляется в поле). */
+  presetUsername?: string;
 }) {
   const { t } = useI18n();
   const [mode, setMode] = useState<AuthMode>("login");
@@ -74,6 +88,9 @@ export function LoginModal({
   const [resetSent, setResetSent] = useState(false);
 
   useBackHandler(visible, onClose);
+  useEffect(() => {
+    if (visible && presetUsername) setUsername(presetUsername);
+  }, [visible, presetUsername]);
 
   // Высота содержимого: обёртка тянется к ней с переходом, поэтому окно плавно растёт и сжимается при смене режима
   const innerRef = useRef<HTMLDivElement>(null);
@@ -168,8 +185,12 @@ export function LoginModal({
       if (mode === "login") await login({ username: u, password, ...guard });
       else await register({ username: u, email: em, password, ...guard });
       await refreshMe();
-      // Вошли в MoeLibre ID — аккаунт nhentai привязывается сам
-      void linkAfterNhLogin();
+      // Вошли здесь — это аккаунт выбранной вкладки
+      confirmSignedInHere();
+      // Вошли в MoeLibre ID — аккаунт nhentai привязывается сам; затем ключ API («вход навсегда»):
+      // ещё одна капча, зато аккаунт не вылетит, когда сессия устареет, и войдёт на других устройствах
+      const keyLabels = { title: t("nhkey.captchaTitle"), error: t("login.form.captchaFailed"), retry: t("common.retry"), cancel: t("common.cancel") };
+      void linkAfterNhLogin().finally(() => void ensureAccountKey(keyLabels));
       resetForm();
       onClose();
     } catch (e) {
@@ -192,8 +213,7 @@ export function LoginModal({
         ? t("login.form.registerTitle")
         : t("login.form.resetTitle");
 
-  return createPortal(
-    <div className="lg-backdrop" onClick={onClose}>
+  const card = (
       <div
         className="lg-card"
         role="dialog"
@@ -392,6 +412,10 @@ export function LoginModal({
           </form>
         </div>
       </div>
+  );
+  return createPortal(
+    <div className="lg-backdrop" onClick={onClose}>
+      {card}
     </div>,
     document.body,
   );

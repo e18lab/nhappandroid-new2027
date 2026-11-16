@@ -22,6 +22,7 @@ import { loadFavoriteIds } from "../lib/library";
 import { addOnlineFavoriteIds, bulkSetFavorites, readOnlineFavoriteIds } from "../lib/onlineFavorites";
 import { useMe } from "../lib/session";
 import { KEYS, getItem, setItem } from "../lib/storage";
+import { PageBar } from "../shell/PageBar";
 import { Button, Icon, LoadingSpinner, NhModal, Spinner, useToast } from "../ui";
 
 const Q_KEY = "ui.q.favoritesOnline";
@@ -164,6 +165,7 @@ export function FavoritesOnlineScreen() {
           if (infinite && el.scrollHeight - el.scrollTop - el.clientHeight < el.clientHeight * 0.6) void loadMore();
         }}
       >
+        <PageBar>
         <div className="fo-header">
           <span className="list-sort-count">{total ? t("listSort.totalCount", { count: total }) : ""}</span>
           <label className="fo-search">
@@ -184,6 +186,7 @@ export function FavoritesOnlineScreen() {
             <Icon name="sliders" size={16} />
           </button>
         </div>
+        </PageBar>
 
         {toolbar && (
           <div className="fo-toolbar">

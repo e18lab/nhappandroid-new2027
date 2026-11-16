@@ -1,0 +1,12 @@
+{
+  "name": "moelibre-app-mcp",
+  "private": true,
+  "type": "module",
+  "description": "MCP-мост для отладки ПК-версии MoeLibre в tauri dev",
+  "main": "server.mjs",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.17.4",
+    "ws": "^8.18.3",
+    "zod": "^3.25.76"
+  }
+}

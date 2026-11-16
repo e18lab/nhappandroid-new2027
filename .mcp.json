@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "moelibre-app": {
+      "command": "node",
+      "args": ["tools/app-mcp/server.mjs"]
+    }
+  }
+}

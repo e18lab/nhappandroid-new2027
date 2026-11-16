@@ -13,10 +13,10 @@
  *  - Выход из nhentai отвязывает активный аккаунт: его сессия на nhentai отзывается для всех устройств.
  */
 import { useSyncExternalStore } from "react";
-import { hasSession, loadAccessToken, loadRefreshToken, storeTokens, tokenHooks } from "../api/client";
+import { hasSession, loadAccessToken, loadAccountKey, loadRefreshToken, storeAccountKey, storeTokens, tokenHooks, type NhAuth } from "../api/client";
 import { getMlAccount, mlFetch, MlError, mlSignedIn, refreshMlProfile, subscribeMl } from "./mlid";
-import { rememberCurrentSession } from "./nhAccounts";
-import { currentNhUserId, swapNhAccount } from "./session";
+import { dropAccountKey, markSessionExpired, rememberCurrentSession } from "./nhAccounts";
+import { clientAccountId, currentNhUserId, swapNhAccount } from "./session";
 
 export const ML_NH_URL: string = (import.meta.env.VITE_ML_NH_URL || "https://mlnappi.moelibre.cc").replace(/\/+$/, "");
 
@@ -29,6 +29,7 @@ export interface NhLinkedAccount {
   linked_at?: string;
   updated_at?: string;
   has_session?: boolean;
+  has_key?: boolean;
 }
 
 interface NhLinkState {
@@ -122,14 +123,33 @@ export async function unlinkNh(id: number): Promise<void> {
   });
 }
 
-/** Сессия аккаунта из привязки (без `id` — последнего использованного); null — её нет. */
-export async function pullNhSession(id?: number): Promise<NhSession | null> {
+/** Вход аккаунта из привязки (без `id` — последнего использованного): сессия и / или ключ; null — ничего. */
+export async function pullNhSession(id?: number): Promise<NhAuth | null> {
   try {
-    const { session } = await mlFetch<{ session: NhSession }>(`${ML_NH_URL}/v1/link/session${id ? `?nh=${id}` : ""}`);
-    return session?.access_token && session.refresh_token ? session : null;
+    const { session, api_key } = await mlFetch<{ session: NhSession | null; api_key?: string | null }>(`${ML_NH_URL}/v1/link/session${id ? `?nh=${id}` : ""}`);
+    const auth: NhAuth = {
+      ...(session?.access_token && session.refresh_token ? { access: session.access_token, refresh: session.refresh_token } : {}),
+      ...(api_key ? { apiKey: api_key } : {}),
+    };
+    return auth.access || auth.apiKey ? auth : null;
   } catch {
     return null;
   }
+}
+
+/** Обновлённая сессия аккаунта (не текущего в клиенте) — в привязку, чтобы там не осталась устаревшая. */
+export async function putNhSession(nh: number, access: string, refresh: string): Promise<void> {
+  await mlFetch(`${ML_NH_URL}/v1/link/session`, { method: "PUT", body: JSON.stringify({ nh, session: { access_token: access, refresh_token: refresh } }) }).catch(() => undefined);
+}
+
+/** Ключ API аккаунта — в привязку (сервис проверит у nhentai, что ключ его). */
+export async function pushNhKey(id: number, key: string): Promise<void> {
+  await mlFetch(`${ML_NH_URL}/v1/link/key`, { method: "PUT", body: JSON.stringify({ nh: id, key }) });
+}
+
+/** Ключ отозван — убрать из привязки. */
+export async function dropNhKey(id: number): Promise<void> {
+  await mlFetch(`${ML_NH_URL}/v1/link/key?nh=${id}`, { method: "DELETE" }).catch(() => undefined);
 }
 
 /** Перейти на другой привязанный аккаунт nhentai на этом устройстве. */
@@ -138,8 +158,8 @@ export async function switchNh(id: number): Promise<void> {
   await busy(id, async () => {
     const s = await pullNhSession(id);
     if (!s) throw new MlError("no_session");
-    syncedKey = keyOf(s.access_token, s.refresh_token ?? null);
-    await swapNhAccount({ access: s.access_token, refresh: s.refresh_token! });
+    syncedKey = keyOf(s.access ?? null, s.refresh ?? null);
+    await swapNhAccount(s, undefined, id);
   });
 }
 
@@ -149,6 +169,11 @@ export async function prepareAddNhAccount(): Promise<void> {
 }
 
 let pushTimer: number | undefined;
+
+/** Профиль подтверждён — отправить сессию в привязку, если она там другая (`session.ts`). */
+export function pushNhSessionSoon(): void {
+  if (mlSignedIn()) schedulePush();
+}
 
 function schedulePush(attempt = 0) {
   window.clearTimeout(pushTimer);
@@ -189,21 +214,31 @@ export async function unlinkBeforeNhLogout(): Promise<void> {
   if (mlSignedIn() && isNhLinked(id)) await unlinkNh(id!).catch(() => undefined);
 }
 
+/**
+ * Можно ли самим войти в привязанный аккаунт (задаёт `browser/tabBinding.ts`): только если у выбранной вкладки
+ * своего аккаунта нет. Иначе вкладка EvTs без входа (сессия устарела) тихо открывалась под другим аккаунтом.
+ */
+export const nhLinkHooks: { canAutoSignIn?: () => boolean } = {};
+
 /** Вошли в MoeLibre ID: узнать привязки и, если здесь nhentai нет, войти в последний использованный аккаунт. */
 async function onMlAccount(): Promise<void> {
   const accounts = await refreshNhLinks();
   if (!accounts?.length) return;
+  if (nhLinkHooks.canAutoSignIn && !nhLinkHooks.canAutoSignIn()) {
+    if (hasSession()) schedulePush();
+    return;
+  }
   if (hasSession()) {
     // Здесь уже вошли — держим привязку в курсе свежих токенов
     schedulePush();
     return;
   }
-  const target = accounts.find((a) => a.has_session !== false);
+  const target = accounts.find((a) => a.has_session !== false || a.has_key);
   if (!target) return;
   const s = await pullNhSession(target.id);
   if (!s) return;
-  syncedKey = keyOf(s.access_token, s.refresh_token ?? null);
-  await swapNhAccount({ access: s.access_token, refresh: s.refresh_token! });
+  syncedKey = keyOf(s.access ?? null, s.refresh ?? null);
+  await swapNhAccount(s, undefined, target.id);
 }
 
 let started = false;
@@ -223,11 +258,22 @@ export function initMlNhentai(): void {
     if (state.accounts === null) await refreshNhLinks();
     if (!isNhLinked(id)) return false;
     const s = await pullNhSession(id);
-    if (!s?.refresh_token || s.refresh_token === failedRefresh) return false;
-    syncedKey = keyOf(s.access_token, s.refresh_token);
+    if (s?.apiKey && !loadAccountKey()) storeAccountKey(s.apiKey);
+    if (!s?.refresh || !s.access || s.refresh === failedRefresh) return false;
+    syncedKey = keyOf(s.access, s.refresh);
     // Тот же аккаунт — только токены; библиотеку не трогаем
-    storeTokens(s.access_token, s.refresh_token);
+    storeTokens(s.access, s.refresh);
     return true;
+  };
+  // Сессия устарела — отметить у аккаунта (видно в списках аккаунтов)
+  // (профиль мог ещё не загрузиться — берём аккаунт, на который переключали); мёртвый токен обновления
+  // запоминаем, чтобы не слать его снова (nhentai за повторы ограничивает частоту — 429)
+  tokenHooks.onExpired = (failed) => markSessionExpired(clientAccountId(), failed);
+  // Ключ отозвали на сайте — убрать его и из привязки
+  tokenHooks.onKeyRevoked = (key) => {
+    dropAccountKey(key);
+    const id = currentNhUserId();
+    if (id && mlSignedIn()) void dropNhKey(id);
   };
 
   let accountId = getMlAccount()?.id ?? null;

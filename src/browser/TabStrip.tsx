@@ -260,7 +260,7 @@ export function BrowserTabStrip() {
 }
 
 /** Закрыть панель при нажатии мимо неё, Esc, смене размера окна. */
-function useDismiss(panel: RefObject<HTMLElement | null>, onClose: () => void, anchor?: HTMLElement | null) {
+export function useDismiss(panel: RefObject<HTMLElement | null>, onClose: () => void, anchor?: HTMLElement | null) {
   useEffect(() => {
     const onDown = (e: PointerEvent) => {
       const target = e.target as Node;

@@ -20,6 +20,13 @@ export function AppHeader({ title }: { title?: string }) {
       {/* Меню: аккаунт MoeLibre, настройки, вкладки */}
       <SideMenuButton />
       {title && <h1 className="ax-header-title">{title}</h1>}
+      {/* Главная: поле поиска, как адресная строка ПК (нажатие — экран поиска) */}
+      {pathname === "/" && !title && (
+        <button type="button" className="ax-header-search" onClick={() => navigate("/search")}>
+          <Icon name="search" size={16} />
+          <span>{t("desk.search")}</span>
+        </button>
+      )}
       <div className="ax-header-actions">
         {pathname === "/" && <UpdateButton />}
         {pathname === "/" && (

@@ -10,11 +10,11 @@ import { useSyncExternalStore } from "react";
 import { useBoundValue } from "../browser/tabs";
 import { getMe } from "../api/account";
 import { logout } from "../api/auth";
-import { ApiError, clearTokens, devPullTokens, hasSession, storeTokens } from "../api/client";
+import { ApiError, hasUserSession, clearTokens, devPullTokens, hasSession, loadAccessToken, loadAccountKey, storeAccountKey, storeTokens, type NhAuth } from "../api/client";
 import type { Me } from "../api/types";
 import { clearLibraryAfterLogout, setCloudNhAccount } from "./cloudSync";
-import { unlinkBeforeNhLogout } from "./mlNhentai";
-import { forgetSession, rememberCurrentSession, repairSavedSession } from "./nhAccounts";
+import { pushNhSessionSoon, unlinkBeforeNhLogout } from "./mlNhentai";
+import { forgetSession, rememberCurrentSession, rememberSessionOf, repairSavedSession } from "./nhAccounts";
 import { syncOnlineFavorites } from "./onlineFavorites";
 import { resetRecommendations } from "./recommendations";
 
@@ -27,9 +27,25 @@ let started = false;
  * поверх выбранного во вкладке, и вкладка запоминала его.
  */
 let generation = 0;
+/** Аккаунт, на который сейчас переключают клиент (профиль ещё не подтверждён). */
+let target: number | null = null;
+
+/** Чей вход сейчас в клиенте: подтверждённый профиль, а пока он грузится — аккаунт, на который переключают. */
+export const clientAccountId = (): number | null => me?.id ?? target;
 const listeners = new Set<() => void>();
 
+/** Разработка: откуда вызвали (для логов моста отладки). */
+function devStack(): string {
+  return (new Error().stack ?? "")
+    .split("\n")
+    .slice(3, 7)
+    .map((l) => l.trim().replace(/^at /, "").replace(/https?:\/\/[^/]+\/src\//, "").replace(/\?t=\d+/, ""))
+    .join(" ← ");
+}
+
 function set(next: Me | null) {
+  if (import.meta.env.DEV && (next?.id ?? null) !== (me?.id ?? null))
+    console.debug(`[me] ${me?.id ?? "—"} → ${next?.id ?? "—"} | ${devStack()}`);
   me = next;
   // Библиотека прежнего аккаунта откладывается, нового — возвращается; облако слушает часть этого аккаунта
   setCloudNhAccount(next?.id ?? null);
@@ -43,7 +59,7 @@ function set(next: Me | null) {
  * `expectId` — аккаунт, на который только что переключились по сохранённой сессии: если токены оказались
  * от другого аккаунта (сохранённое испорчено), сессия берётся заново из привязки MoeLibre.
  */
-export async function refreshMe(expectId?: number): Promise<Me | null> {
+export async function refreshMe(expectId?: number, repaired = false): Promise<Me | null> {
   const gen = ++generation;
   if (!hasSession()) {
     set(null);
@@ -53,19 +69,30 @@ export async function refreshMe(expectId?: number): Promise<Me | null> {
     const next = await getMe();
     if (gen !== generation) return me;
     if (expectId != null && next.id !== expectId) {
-      const fresh = await repairSavedSession(expectId);
+      // Токены — от другого аккаунта. Они настоящие — сохраним под тем, чей это аккаунт
+      rememberSessionOf(next);
+      const fresh = repaired ? null : await repairSavedSession(expectId);
       if (gen !== generation) return me;
-      if (fresh) {
-        storeTokens(fresh.access, fresh.refresh);
-        return refreshMe();
+      if (fresh && ((fresh.access ?? null) !== loadAccessToken() || (fresh.apiKey ?? null) !== loadAccountKey())) {
+        putAuth(fresh);
+        return refreshMe(expectId, true);
       }
+      // Настоящей сессии этого аккаунта нет нигде (в привязке тоже чужая) — без входа, но не под чужим
+      // аккаунтом: вкладка помнит свой аккаунт, а клиент не выдаёт другой за него
+      clearTokens();
+      storeAccountKey(null);
+      set(null);
+      return null;
     }
     set(next);
+    // Профиль подтверждён — сессия этого аккаунта уходит в привязку MoeLibre (чинит испорченную там)
+    pushNhSessionSoon();
     void syncOnlineFavorites();
   } catch (e) {
     if (gen !== generation) return me;
-    // Сеть могла упасть только сейчас — профиль не затираем, пока токены на месте
-    if (!hasSession() || (e instanceof ApiError && e.status === 401)) set(null);
+    // Сеть могла упасть только сейчас — профиль не затираем, пока токены на месте. 401 при живых токенах —
+    // обновление отложено (nhentai ответил 429), это не выход; 401 только по ключу — ключ не принимают
+    if (!hasSession() || (e instanceof ApiError && e.status === 401 && !hasUserSession())) set(null);
   }
   return me;
 }
@@ -90,6 +117,17 @@ function useMeLive(): Me | null {
   );
 }
 
+/**
+ * Аккаунт сменили намеренно: вошли в окне входа или вышли. Только так меняется аккаунт выбранной вкладки
+ * (`tabBinding.ts`); сбой сессии, обновление токенов или ответ профиля аккаунт вкладки не трогают.
+ */
+export const accountIntent: { onExplicit?: (id: number | null) => void } = {};
+
+/** Вошли в окне входа — аккаунт становится аккаунтом выбранной вкладки. */
+export function confirmSignedInHere(): void {
+  accountIntent.onExplicit?.(me?.id ?? null);
+}
+
 /** Подписка на смену аккаунта вне React (вкладки запоминают свой аккаунт). */
 export function subscribeMe(fn: () => void): () => void {
   listeners.add(fn);
@@ -106,21 +144,43 @@ export const currentNhUserId = (): number | null => me?.id ?? null;
  * Библиотека прежнего аккаунта откладывается на устройстве (и лежит в его части облака), нового — возвращается.
  * `next` — токены нового аккаунта; null — остаться без входа (дальше — окно входа).
  */
-export async function swapNhAccount(next: { access: string; refresh: string } | null, cachedMe?: Me): Promise<void> {
+export async function swapNhAccount(next: NhAuth | null, cachedMe?: Me, expectId?: number): Promise<void> {
   generation++;
+  target = next ? (expectId ?? cachedMe?.id ?? null) : null;
+  if (import.meta.env.DEV) console.debug(`[swap] → ${next ? (target ?? "?") : "без входа"}${next?.access ? " сессия" : ""}${next?.apiKey ? " ключ" : ""} | ${devStack()}`);
   if (me) resetRecommendations();
-  if (next && cachedMe) {
+  const usable = !!next && (!!(next.access && next.refresh) || !!next.apiKey);
+  if (usable && cachedMe) {
     // Сразу на другой аккаунт, без промежуточного «без входа»: экраны не дёргаются лишний раз
-    storeTokens(next.access, next.refresh);
+    putAuth(next!);
     set(cachedMe);
     void refreshMe(cachedMe.id);
     return;
   }
   set(null);
-  if (next) {
-    storeTokens(next.access, next.refresh);
-    await refreshMe();
-  } else clearTokens();
+  if (usable) {
+    putAuth(next!);
+    await refreshMe(expectId);
+  } else {
+    clearTokens();
+    storeAccountKey(null);
+  }
+}
+
+let swapping = false;
+/** Идёт подмена входа: сохранённые токены ещё не того аккаунта, что `me` (не запоминать их под ним). */
+export const isSwappingAuth = () => swapping;
+
+/** Вход аккаунта — в клиент: сессия (или её нет) и ключ. */
+function putAuth(next: NhAuth) {
+  swapping = true;
+  try {
+    storeAccountKey(next.apiKey ?? null);
+    if (next.access && next.refresh) storeTokens(next.access, next.refresh);
+    else clearTokens();
+  } finally {
+    swapping = false;
+  }
 }
 
 export async function signOut(): Promise<void> {
@@ -132,6 +192,7 @@ export async function signOut(): Promise<void> {
   await unlinkBeforeNhLogout();
   await logout();
   set(null);
+  accountIntent.onExplicit?.(null);
 }
 
 // ─── Капча (Android: CaptchaDialog.kt, ПК: src-tauri/src/captcha.rs) ──────────

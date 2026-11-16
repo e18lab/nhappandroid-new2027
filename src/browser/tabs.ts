@@ -24,6 +24,17 @@ export interface BrowserTab {
   account?: number | null;
   /** Фильтры каталога вкладки: ключ хранилища → значение (null — фильтр снят). */
   filters?: Record<string, string | null>;
+  /** История «назад / вперёд» вкладки (только страницы, без окон) — переживает перезапуск и уходит в облако. */
+  history?: TabHistory;
+}
+
+/**
+ * История вкладки: `e` — страницы по порядку (`p` — адрес, `t` — раздел главной, `s` — та же запись роутера,
+ * что и предыдущая: сменился только раздел главной), `i` — открытая.
+ */
+export interface TabHistory {
+  e: { p: string; t?: string; s?: 1 }[];
+  i: number;
 }
 
 const TABS_KEY = "browser.tabs.v1";
@@ -233,6 +244,35 @@ export function updateTabPath(id: string, path: string): void {
   setTabs(tabs.map((t) => (t.id === id ? { ...t, path } : t)));
 }
 
+/** Запомнить историю вкладки. */
+export function updateTabHistory(id: string, history: TabHistory): void {
+  const tabs = getTabs();
+  const tab = tabs.find((t) => t.id === id);
+  if (!tab || JSON.stringify(tab.history) === JSON.stringify(history)) return;
+  setTabs(tabs.map((t) => (t.id === id ? { ...t, history } : t)));
+}
+
+/** Сохранённая история вкладки, если она про её нынешний адрес (адрес могли сменить на другом устройстве). */
+export function savedHistory(tab: BrowserTab): TabHistory | null {
+  const h = tab.history;
+  if (!h || !Array.isArray(h.e) || !Number.isInteger(h.i) || h.i < 0 || h.i >= h.e.length) return null;
+  if (!h.e.every((x) => x && typeof x.p === "string" && (x.t == null || typeof x.t === "string"))) return null;
+  return devicePath(h.e[h.i].p, true) === devicePath(tab.path, true) ? h : null;
+}
+
+/** Записи роутера вкладки из её истории: подряд идущие разделы главной — одна запись. */
+export function routerEntries(tab: BrowserTab): { entries: string[]; index: number } {
+  const h = savedHistory(tab);
+  if (!h) return { entries: [devicePath(tab.path, true)], index: 0 };
+  const entries: string[] = [];
+  let index = 0;
+  h.e.forEach((x, i) => {
+    if (!(i > 0 && x.s)) entries.push(devicePath(x.p, true));
+    if (i === h.i) index = entries.length - 1;
+  });
+  return { entries, index };
+}
+
 /** Запомнить аккаунт или фильтры вкладки. */
 export function updateTabMeta(id: string, patch: Pick<BrowserTab, "account" | "filters">): void {
   const tabs = getTabs();
@@ -295,6 +335,9 @@ const IDLE_ROUTER: ActiveRouter = { location: { pathname: "/", search: "" }, nav
 let activeRouter: ActiveRouter = IDLE_ROUTER;
 const routerListeners = new Set<() => void>();
 
+/** Роутер выбранной вкладки вне React (отладочный мост). */
+export const getActiveRouter = (): ActiveRouter => activeRouter;
+
 export function setActiveRouter(r: ActiveRouter): void {
   activeRouter = r;
   for (const l of routerListeners) l();
@@ -309,6 +352,50 @@ export function useActiveRouter(): ActiveRouter {
       };
     },
     () => activeRouter,
+  );
+}
+
+// ─── «Назад / вперёд» по страницам (ПК) ───────────────────────────────────────
+// Каркас вкладки (`Shell.tsx`) знает её историю и умеет шагать, пропуская окна (настройки, профиль…):
+// кнопки адресной строки ходят только по страницам.
+
+export interface PageHistoryPage {
+  /** Номер записи истории — для `go`. */
+  i: number;
+  path: string;
+  /** Раздел главной. */
+  tab?: string;
+}
+
+export interface PageHistoryNav {
+  back(): void;
+  forward(): void;
+  /** Перейти на запись истории (из `pages`). */
+  go(i: number): void;
+  canBack: boolean;
+  canForward: boolean;
+  /** Страницы до открытой (ближняя — первой) и после неё. */
+  pages(): { back: PageHistoryPage[]; forward: PageHistoryPage[] };
+}
+const pageNav = new Map<string, PageHistoryNav>();
+const pageNavListeners = new Set<() => void>();
+export function setPageHistoryNav(tabId: string, nav: PageHistoryNav | null): void {
+  if (nav) pageNav.set(tabId, nav);
+  else pageNav.delete(tabId);
+  for (const l of pageNavListeners) l();
+}
+export const getPageHistoryNav = (tabId: string): PageHistoryNav | undefined => pageNav.get(tabId);
+
+/** «Назад / вперёд» вкладки — для кнопок (неактивны, когда идти некуда). */
+export function usePageHistoryNav(tabId: string): PageHistoryNav | undefined {
+  return useSyncExternalStore(
+    (cb) => {
+      pageNavListeners.add(cb);
+      return () => {
+        pageNavListeners.delete(cb);
+      };
+    },
+    () => pageNav.get(tabId),
   );
 }
 

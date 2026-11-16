@@ -26,6 +26,7 @@ import {
   openTab,
   reloadTab,
   reopenClosedTab,
+  routerEntries,
   setActiveRouter,
   TabActiveContext,
   TabIdContext,
@@ -76,7 +77,7 @@ export function DesktopBrowser({ routes }: { routes: ReactNode }) {
       {[...tabs].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)).map((tab) => (
         <TabActiveContext.Provider key={tabReloadKey(tab.id)} value={tab.id === active}>
           <TabIdContext.Provider value={tab.id}>
-            <MemoryRouter initialEntries={[devicePath(tab.path, true)]}>
+            <MemoryRouter initialEntries={routerEntries(tab).entries} initialIndex={routerEntries(tab).index}>
               <TabBridge id={tab.id} active={tab.id === active} path={tab.path} />
               <Shell embedded active={tab.id === active}>
                 {routes}

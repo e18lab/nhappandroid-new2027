@@ -29,7 +29,7 @@ import {
   type MlProvider,
 } from "../lib/mlid";
 import { linkNh, refreshNhLinks, unlinkNh, useNhLink } from "../lib/mlNhentai";
-import { addNhAccountInNewTab } from "../shell/TabAccount";
+import { addNhAccountInNewTab, AuthStatus, useAccountAuth } from "../shell/TabAccount";
 import { useMe } from "../lib/session";
 import { timeAgo } from "../lib/timeAgo";
 import { openLogin } from "../shell/LoginModal";
@@ -211,6 +211,7 @@ export function MlAccountScreen() {
   const custom = isCustomMlAvatar(account.avatar_url);
   const nhRes = resourceById("nhentai");
   const nhAccounts = nh.accounts ?? [];
+  const authOf = useAccountAuth();
   const idAvatar = (id: number) => profile?.links.find((l) => l.service === "nhentai" && l.external_id === String(id))?.avatar_url ?? null;
   // Вошли здесь в аккаунт, которого нет среди привязанных
   const unlinkedHere = nhMe && nh.accounts && !nhAccounts.some((a) => a.id === nhMe.id) ? nhMe : null;
@@ -330,7 +331,7 @@ export function MlAccountScreen() {
           </span>
           {nh.accounts === null && <Spinner size={18} />}
           {nh.accounts !== null && !nhMe && !nhAccounts.length && (
-            <button type="button" className="ml-btn is-primary" onClick={openLogin}>
+            <button type="button" className="ml-btn is-primary" onClick={() => openLogin()}>
               {t("mlid.nh.signIn")}
             </button>
           )}
@@ -347,7 +348,22 @@ export function MlAccountScreen() {
                   <span className="ml-acc-ava">{avatar ? <img src={avatar} alt="" referrerPolicy="no-referrer" /> : (a.username || "?").charAt(0).toUpperCase()}</span>
                   <span className="ml-acc-text">
                     <b>{a.username}</b>
-                    <span>{here ? t("accounts.inTab") : a.updated_at ? t("mlid.nh.usedAgo", { time: timeAgo(a.updated_at, resolved) }) : `#${a.id}`}</span>
+                    <span>
+                      {/* Нужно войти — только это (длинная подпись иначе обрезается до «…») */}
+                      {authOf(a.id) === "expired" ? (
+                        <AuthStatus auth="expired" />
+                      ) : (
+                        <>
+                          {here ? t("accounts.inTab") : a.updated_at ? t("mlid.nh.usedAgo", { time: timeAgo(a.updated_at, resolved) }) : `#${a.id}`}
+                          {authOf(a.id) !== "unknown" && (
+                            <>
+                              {" · "}
+                              <AuthStatus auth={authOf(a.id)} />
+                            </>
+                          )}
+                        </>
+                      )}
+                    </span>
                   </span>
                   {busy ? (
                     <Spinner size={18} />

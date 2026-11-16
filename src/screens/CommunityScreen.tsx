@@ -32,7 +32,6 @@ import {
   downloadTranslationFile,
   getCharacterCards,
   getCharacterCatalog,
-  getCommunityMe,
   getEditorBans,
   getEditorSummary,
   getTagLocks,
@@ -84,6 +83,7 @@ import { API_BASE_URL } from "../config/api";
 import { useI18n, type ResolvedLocale } from "../i18n/I18nContext";
 import { inTauri } from "../lib/downloads";
 import { useMe } from "../lib/session";
+import { NO_RIGHTS, useCommunityMe } from "../lib/communityMe";
 import { getItem, setItem, subscribe } from "../lib/storage";
 import { setTagTranslation } from "../lib/tagTranslations";
 import { timeAgo } from "../lib/timeAgo";
@@ -550,7 +550,6 @@ type FeedUser = { id: number; label: string };
 /** Пароль модератора — на время работы приложения, не сохраняется; нужен, только если токен не подтверждён. */
 let moderatorPassword = "";
 
-const NO_RIGHTS: CommunityMe = { isModerator: false, banned: false, verified: false };
 /** Права текущего пользователя в разделе — для всех вложенных строк и шторок. */
 const RightsContext = createContext<CommunityMe>(NO_RIGHTS);
 const useRights = () => useContext(RightsContext);
@@ -558,29 +557,6 @@ const useRights = () => useContext(RightsContext);
 const modPassword = (rights: CommunityMe) => (rights.verified ? undefined : moderatorPassword);
 
 /** Права с сервера; перепроверяются при возврате в окно (бан, обновлённый сервер). */
-function useCommunityMe(): CommunityMe {
-  const me = useMe();
-  const [info, setInfo] = useState<CommunityMe>(NO_RIGHTS);
-  useEffect(() => {
-    if (!me) {
-      setInfo(NO_RIGHTS);
-      return;
-    }
-    let alive = true;
-    const check = () => void getCommunityMe(me.id).then((x) => alive && setInfo(x));
-    const onVisible = () => document.visibilityState === "visible" && check();
-    check();
-    window.addEventListener("focus", check);
-    document.addEventListener("visibilitychange", onVisible);
-    return () => {
-      alive = false;
-      window.removeEventListener("focus", check);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
-  }, [me]);
-  return info;
-}
-
 type T = (k: string, p?: Record<string, string | number>) => string;
 
 /** Понятный текст ошибки сервера сообщества. */
@@ -2029,7 +2005,7 @@ function FilesMode({ locale: initialLocale, onOpenSubmission, reloadKey }: { loc
         {!me ? (
           <div className="cm-file-form">
             <p className="cm-empty is-small">{t("community.fileLogin")}</p>
-            <button type="button" className="ax-btn ax-btn-ghost" onClick={openLogin}>
+            <button type="button" className="ax-btn ax-btn-ghost" onClick={() => openLogin()}>
               {t("community.loginToEdit")}
             </button>
           </div>

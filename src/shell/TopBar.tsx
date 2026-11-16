@@ -13,6 +13,8 @@ import { englishOf, useTranslatedTitle } from "../lib/titleTranslations";
 import { CatalogFilterButton } from "./CatalogFilter";
 import { CloudButton } from "./CloudButton";
 import { Icon, NhModal, useLongPress } from "../ui";
+import { routeIcon, routeTitle } from "./routeTitle";
+import { HISTORY_MENU_MAX, useBackStack } from "./HistoryMenu";
 
 /** Первый сегмент пути — как hasSeg в старом. */
 function section(pathname: string): string {
@@ -22,7 +24,7 @@ function section(pathname: string): string {
 /** Экраны без правых иконок (hideRight в старом). */
 const HIDE_RIGHT = new Set(["mlid", "accounts", "tabs", "settings", "tags", "book", "profile", "community", "favorites", "favorites-online", "uikit", "image-search", "characters"]);
 
-export function TopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
+export function TopBar({ onOpenMenu, slotRef }: { onOpenMenu: () => void; /** Слот панели страницы (`PageBar.tsx`). */ slotRef?: (el: HTMLElement | null) => void }) {
   const { t } = useI18n();
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -41,59 +43,21 @@ export function TopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
   const rawTitle = params.get("title") ?? "";
   const bookTitle = titlesOn ? bookTr || englishOf(rawTitle) || rawTitle : rawTitle;
 
-  const title = (() => {
-    switch (seg) {
-      case "":
-        return t("menu.home");
-      case "explore":
-        return q ? `${t("search.results")}: ${q}` : t("menu.explore");
-      case "favorites":
-        return t("menu.favorites");
-      case "favorites-online":
-        return t("menu.favoritesOnline");
-      case "downloaded":
-        return t("menu.downloaded");
-      case "recommendations":
-        return t("menu.recommendations");
-      case "image-search":
-        return t("search.imageSearchResultsTitle");
-      case "characters":
-        return t("menu.characters");
-      case "history":
-        return t("menu.history");
-      case "community":
-        return t("nav.community");
-      case "settings": {
-        // Страница раздела (/settings/grid …) — его название
-        const sub = pathname.split("/")[2];
-        return sub ? t(`settings.section.${sub}`) : t("menu.settings");
-      }
-      case "book":
-        return `#${pathname.split("/")[2] ?? ""} - ${bookTitle}`;
-      case "tags":
-        return t("menu.tags");
-      case "profile": {
-        const [, , pid, pslug, sub] = pathname.split("/");
-        if (sub === "edit") return t("profile.edit.title");
-        return me && String(me.id) === pid ? t("menu.profile") : decodeURIComponent(pslug ?? "");
-      }
-      case "accounts":
-        return pathname.endsWith("/edit") ? t("profile.edit.title") : t("accounts.title");
-      case "tabs":
-        return t("tabs.title");
-      case "mlid": {
-        // Страницы облака: /mlid/cloud/data, /mlid/cloud/devices
-        const sub = pathname.split("/")[3];
-        return sub ? t(`mlcloud.${sub}`) : t("mlid.account");
-      }
-      case "uikit":
-        return t("uikit.title");
-      default:
-        return "MoeLibre";
-    }
-  })();
+  const title = routeTitle(pathname + (q && seg === "explore" ? `?query=${encodeURIComponent(q)}` : ""), t, { meId: me?.id, bookTitle: bookTitle || undefined });
 
-  const backLong = useLongPress(() => setBackOpen(true));
+  // Удержание «назад» — страницы позади, ближняя первой: нажали — назад сразу на неё
+  const backStack = useBackStack();
+  const [backItems, setBackItems] = useState<{ key: string; label: string; icon: ReturnType<typeof routeIcon>; steps: number }[]>([]);
+  const backLong = useLongPress(() => {
+    const stack = backStack().slice(0, -1).reverse().slice(0, HISTORY_MENU_MAX);
+    setBackItems(
+      stack.map((l, k) => {
+        const path = l.pathname + l.search;
+        return { key: `${l.key}-${k}`, label: routeTitle(path, t, { meId: me?.id, short: true }), icon: routeIcon(path), steps: k + 1 };
+      }),
+    );
+    setBackOpen(true);
+  });
   const hideRight = HIDE_RIGHT.has(seg);
   const hideSearchFilter = seg === "recommendations";
 
@@ -147,35 +111,35 @@ export function TopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
           </button>
         </div>
       )}
+      {/* Элементы страницы (действия книги…) — справа на ПК, отдельной строкой на телефоне */}
+      <div className="topbar-slot" ref={slotRef} />
 
       <NhModal visible={backOpen} onClose={() => setBackOpen(false)} title={t("common.back")} sheetStyle={{ background: "var(--search-bg)" }}>
         <div className="back-sheet">
+          {backItems.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              className="back-sheet-row"
+              onClick={() => {
+                setBackOpen(false);
+                navigate(-item.steps);
+              }}
+            >
+              <Icon name={item.icon} size={18} />
+              <span>{item.label}</span>
+            </button>
+          ))}
           <button
             type="button"
-            onClick={() => {
-              setBackOpen(false);
-              navigate(-1);
-            }}
-          >
-            {t("searchBar.backOne")}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setBackOpen(false);
-              navigate(-2);
-            }}
-          >
-            {t("searchBar.backTwo")}
-          </button>
-          <button
-            type="button"
+            className="back-sheet-row"
             onClick={() => {
               setBackOpen(false);
               navigate("/", { replace: true });
             }}
           >
-            {t("searchBar.backHome")}
+            <Icon name="home" size={18} />
+            <span>{t("searchBar.backHome")}</span>
           </button>
         </div>
       </NhModal>
