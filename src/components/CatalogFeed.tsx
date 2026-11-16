@@ -8,7 +8,8 @@
  * при открытии она показывается сразу, а свежая подгружается поверх. Не загрузилось, а запомненное есть —
  * остаётся оно, без экрана ошибки. Ошибка — лента сама пробует снова, когда сеть вернулась или окно снова видно.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
+import { TabIdContext } from "../browser/tabs";
 import { useLocation, useNavigate } from "react-router-dom";
 import { galleryCardToBook, type Book } from "../api/book";
 import { PER_PAGE } from "../api/galleries";
@@ -95,7 +96,8 @@ function fetchPage(query: string, page: number, sort: SortOrder) {
 export function CatalogFeed({ query = "", sort: fixedSort }: { query?: string; sort?: SortOrder }) {
   const { t } = useI18n();
   const navigate = useNavigate();
-  const historyKey = useLocation().key;
+  // Запись истории этой вкладки (первая у каждой — «default», поэтому с номером вкладки)
+  const historyKey = `${useContext(TabIdContext) ?? ""}|${useLocation().key}`;
   const filters = useBrowseFilters();
   const sort = fixedSort ?? getSort();
 
@@ -107,7 +109,8 @@ export function CatalogFeed({ query = "", sort: fixedSort }: { query?: string; s
   const [retry, setRetry] = useState(0);
   const [moreError, setMoreError] = useState(false);
   const loadingMore = useRef(false);
-  const firstRun = useRef(true);
+  // Фильтры, с которыми экран открыли: снимок ленты подходит только к ним
+  const openedWith = useRef(filters);
   const sentinel = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
 
@@ -122,8 +125,7 @@ export function CatalogFeed({ query = "", sort: fixedSort }: { query?: string; s
     const key = feedKey(query, sort);
     // Вернулись назад к этой записи истории — лента как была, без запроса (только при открытии экрана:
     // смена фильтров дальше грузит заново)
-    const snap = firstRun.current ? snapshots.get(`${historyKey}|${key}`) : undefined;
-    firstRun.current = false;
+    const snap = retry === 0 && filters === openedWith.current ? snapshots.get(`${historyKey}|${key}`) : undefined;
     if (snap) {
       setBooks(snap.books);
       setPage(snap.page);

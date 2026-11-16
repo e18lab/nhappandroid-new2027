@@ -1085,3 +1085,13 @@ html:not(.is-desktop) .book-dock .book-read.has-sub > svg { display: none; }
   .bk-chars { order: 2; width: 100%; }
   .bk-chars-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
+
+/* Назад / вперёд: идти некуда — стрелка приглушена */
+.dk-histnav .dk-btn:disabled { opacity: .32; cursor: default; background: none; }
+
+/* История «назад / вперёд»: меню под стрелкой (ПК) */
+.dk-histmenu { min-width: 220px; max-width: 360px; }
+/* Телефон: удержание «назад» — страницы позади */
+.back-sheet .back-sheet-row { display: flex; align-items: center; gap: 12px; text-align: left; }
+.back-sheet .back-sheet-row > svg { flex: none; color: var(--sub); }
+.back-sheet .back-sheet-row > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

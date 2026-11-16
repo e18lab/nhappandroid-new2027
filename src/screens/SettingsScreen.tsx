@@ -27,18 +27,19 @@ import { applyTheme, getBaseHue, saveHue, setBaseHue, themeColors } from "../the
 import { Icon, ListGroup, ListHint, ListRow, RadioRow, Spinner, StepperRow, SwitchRow, type IconName } from "../ui";
 import { ProfileEditScreen } from "./ProfileEditScreen";
 import { ServerSettings } from "./ServerSettings";
+import { useCommunityMe } from "../lib/communityMe";
 import { UpdatesSettings } from "./UpdatesSettings";
 
 const DISCORD_URL = "https://discord.gg/VnxH7yfPqf";
 
 /** Страницы настроек: адрес `/settings/<key>`, иконка и её цвет в списке, подпись. */
-const SECTIONS: { key: string; icon: IconName; color: string; subKey: string }[] = [
+const SECTIONS: { key: string; icon: IconName; color: string; subKey: string; admin?: boolean }[] = [
   { key: "appearance", icon: "palette", color: "#e8594f", subKey: "settings.hub.appearanceSub" },
   { key: "display", icon: "smartphone", color: "#4cae5b", subKey: "settings.hub.displaySub" },
   { key: "cards", icon: "grid", color: "#f0973b", subKey: "settings.hub.cardsSub" },
   { key: "storage", icon: "database", color: "#9a6ae0", subKey: "settings.hub.storageSub" },
   { key: "updates", icon: "download", color: "#3fa7e0", subKey: "settings.hub.updatesSub" },
-  { key: "server", icon: "cloud", color: "#2fb39a", subKey: "settings.hub.serverSub" },
+  { key: "server", icon: "cloud", color: "#2fb39a", subKey: "settings.hub.serverSub", admin: true },
 ];
 
 /** Цвет образца палитры — hslToHex(h, 78%, 50%) из HuePaletteSelector. */
@@ -73,6 +74,7 @@ export function SettingsScreen() {
   const { t, available, locale } = useI18n();
   const navigate = useNavigate();
   const [randomBusy, setRandomBusy] = useState(false);
+  const isAdmin = useCommunityMe().isModerator;
   const taps = useRef<{ count: number; timer: number | null }>({ count: 0, timer: null });
 
   const onVersionPress = () => {
@@ -113,7 +115,7 @@ export function SettingsScreen() {
           sub={available.find((o) => o.code === locale)?.label ?? locale}
           onPress={() => navigate("/settings/language")}
         />
-        {SECTIONS.map((s) => (
+        {SECTIONS.filter((s) => !s.admin || isAdmin).map((s) => (
           <ListRow
             key={s.key}
             icon={s.icon}
@@ -157,6 +159,8 @@ export function SettingsScreen() {
 /** Страница одного раздела настроек (`/settings/:section`). */
 export function SettingsSectionScreen() {
   const { section } = useParams();
+  // Сервер (проход каталога, перевод названий) — только модераторам MoeLibre
+  const isAdmin = useCommunityMe().isModerator;
   if (section === "account") return <ProfileEditScreen />;
   return (
     <div className="screen-scroll set-page">
@@ -165,7 +169,7 @@ export function SettingsSectionScreen() {
       {section === "display" && <DisplaySettings />}
       {(section === "cards" || section === "grid") && <CardsSettings />}
       {section === "updates" && <UpdatesSettings />}
-      {section === "server" && <ServerSettings />}
+      {section === "server" && isAdmin && <ServerSettings />}
       {section === "storage" && (
         <>
           <SavePathRow />

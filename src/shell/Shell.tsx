@@ -24,7 +24,7 @@
  * свой роутер и свой каркас (`embedded`): только панель с экранами, без заголовка окна (он общий,
  * `DesktopChrome.tsx`) и без общих для окна вещей. Нижней панели и шапки разделов нет.
  */
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { memo, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { UNSAFE_LocationContext, useLocation, useNavigate, useNavigationType, type Location, type NavigationType } from "react-router-dom";
 import { useI18n } from "../i18n/I18nContext";
 import { startAutoUpdate } from "../lib/ota";
@@ -42,11 +42,14 @@ import { usePredictiveBack, useSwipeBack } from "./swipeBack";
 import { MobileTabBridge } from "../screens/TabsScreen";
 import { SideMenu } from "./SideMenu";
 import { AccountGate } from "./AccountNotice";
-import { useTabActive, useTabReloads } from "../browser/tabs";
+import { TabIdContext, useTabActive, useTabReloads } from "../browser/tabs";
 import { createPortal } from "react-dom";
 import { PageBarSlot, useDeskBarTarget } from "./PageBar";
+import { useScrollMemory } from "./scrollMemory";
 import { TopBar } from "./TopBar";
 import { isWindowRoute, WIDE_QUERY } from "./windowRoutes";
+import { useTabHistory } from "../browser/tabHistory";
+import { BackStackContext } from "./HistoryMenu";
 
 /** Главные разделы и заголовки их шапки (у главной заголовка нет, у настроек нет самой шапки). */
 const ROOTS: Record<string, string | null> = { "/": null, "/community": "nav.community", "/settings": "menu.settings", "/me": "nav.profile" };
@@ -131,6 +134,7 @@ export function Shell({
   const reloadKey = embedded || IS_DESKTOP ? 0 : reloads;
   const inWindow = (loc: Location) => wide && isWindowRoute(loc.pathname);
   const history = useRef<Location[]>([location]);
+  const backStack = useCallback(() => history.current, []);
   const stack = useRef<HTMLDivElement>(null);
   const reader = location.pathname.startsWith("/read/");
   // На ПК нижней панели нет — разделы вкладками главной и кнопками в заголовке окна
@@ -151,6 +155,10 @@ export function Shell({
     else if (navType === "PUSH") h.push(location);
     else history.current = [location];
   }, [location, navType]);
+
+  // ПК: «назад / вперёд» адресной строки — по страницам вкладки, история хранится во вкладке (browser/tabHistory.ts)
+  const tabId = useContext(TabIdContext);
+  useTabHistory(tabId, location, navType, navigate);
 
   // Текущий слой — последний не уходящий (при закрытии окна уходящее окно стоит в конце)
   const top = [...layers].reverse().find((l) => !l.className.includes("is-exit")) ?? layers[layers.length - 1];
@@ -242,6 +250,19 @@ export function Shell({
 
   const hiddenTab = embedded && !active ? " is-hidden-tab" : "";
 
+  const windowEl = (
+    <div key="window" className={windowClosing ? "ax-window-host is-closing" : "ax-window-host"}>
+      <div className="ax-window-dim" onClick={closeWindowStable} />
+      <div className="ax-window" role="dialog">
+        {windowLayers.map((layer) => renderLayer(layer, layer.className.replace("window-exit", ""), true))}
+      </div>
+    </div>
+  );
+  // ПК: окно — поверх всего окна приложения, и заголовка с панелью тоже. Панель лежит выше экрана (свой слой),
+  // поэтому окно выносится из экрана в корень приложения — у выбранной вкладки; у скрытой остаётся в ней
+  const appRoot = IS_DESKTOP && active ? document.querySelector<HTMLElement>(".ax-app.ax-desk") : null;
+  const windowHost = appRoot ? createPortal(windowEl, appRoot) : windowEl;
+
   if (reader && embedded) return <div className={`app-reader-body dk-tab-reader${hiddenTab}`}>{children}</div>;
   if (reader)
     return (
@@ -257,19 +278,14 @@ export function Shell({
         <div className="top-chrome" />
         {active && <DownloadBanner />}
         {!embedded && <DownloadNotifier />}
+        <BackStackContext.Provider value={backStack}>
         <div ref={stack} className="ax-stack">
           {[...(wide && base ? [base] : []), ...(under ? [under] : []), ...plain].map((layer) =>
             renderLayer(layer, layer === base ? "is-base" : layer === top && layers.length === 1 ? "is-top" : layer.className),
           )}
-          {windowLayers.length > 0 && (
-            <div key="window" className={windowClosing ? "ax-window-host is-closing" : "ax-window-host"}>
-              <div className="ax-window-dim" onClick={closeWindowStable} />
-              <div className="ax-window" role="dialog">
-                {windowLayers.map((layer) => renderLayer(layer, layer.className.replace("window-exit", ""), true))}
-              </div>
-            </div>
-          )}
+          {windowLayers.length > 0 && windowHost}
         </div>
+        </BackStackContext.Provider>
         {nav && <BottomNav />}
         {active && <OverlayScrollbar />}
         {!embedded && <LoginHost />}
@@ -328,7 +344,7 @@ function ScreenLayer({
   children: ReactNode;
 }) {
   const { t } = useI18n();
-  const { pathname } = useLocation();
+  const { pathname, key: historyKey } = useLocation();
   const root = title !== undefined;
   // ПК, обычный экран (не окно): строка «назад + заголовок» — в панели заголовка окна, а не над страницей
   const deskBar = IS_DESKTOP && !onClose;
@@ -346,6 +362,10 @@ function ScreenLayer({
     [root, deskBar, deskTarget, topSlot, active],
   );
   useScrollHead(ref, head !== null, pathname === "/");
+  // Вернулись назад к этой записи истории — прокрутка как была (у каждой вкладки своя история)
+  // Первая запись у роутера каждой вкладки — «default»: ключ дополняется вкладкой
+  const tabId = useContext(TabIdContext) ?? "";
+  useScrollMemory(ref, `${tabId}|${historyKey}`);
   const header = root ? (
     onClose ? (
       <button type="button" className="ax-window-close" aria-label={t("common.close")} onClick={onClose}>

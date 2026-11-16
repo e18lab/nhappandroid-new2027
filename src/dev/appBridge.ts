@@ -14,10 +14,11 @@ import * as sessionMod from "../lib/session";
 import * as nhAccountsMod from "../lib/nhAccounts";
 import * as clientMod from "../api/client";
 import * as mlNhMod from "../lib/mlNhentai";
+import * as storageMod from "../lib/storage";
 
 // Модули приложения для `app_eval` — те же экземпляры, что у приложения (динамический import после HMR
 // может дать вторую копию модуля со своим состоянием)
-(window as unknown as { __ml: unknown }).__ml = { tabs: tabsMod, session: sessionMod, nh: nhAccountsMod, client: clientMod, link: mlNhMod };
+(window as unknown as { __ml: unknown }).__ml = { tabs: tabsMod, session: sessionMod, nh: nhAccountsMod, client: clientMod, link: mlNhMod, storage: storageMod };
 
 const URL = "ws://127.0.0.1:47321";
 const RETRY_MS = 3000;
