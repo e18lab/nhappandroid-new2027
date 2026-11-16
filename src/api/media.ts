@@ -27,14 +27,42 @@ let ready: Promise<void> | null = null;
 
 const trimSlash = (url: string) => url.replace(/\/$/, "");
 
-/** Хосты CDN из GET /config, иначе /cdn, иначе t1–t4 / i1–i4. Параллельные вызовы ждут один запрос. */
+/** Хосты с прошлого запуска — на устройстве, чтобы ленты не ждали /config. */
+const CDN_CACHE_KEY = "@local.cdn.hosts";
+/** Без сохранённых хостов ленты ждут /config не дольше этого — дальше t1–t4 / i1–i4, конфиг догонит. */
+const CDN_WAIT_MS = 1_500;
+
+try {
+  const saved = JSON.parse(localStorage.getItem(CDN_CACHE_KEY) || "null") as { t?: string[]; i?: string[] } | null;
+  if (saved?.t?.length) thumbs = saved.t;
+  if (saved?.i?.length) images = saved.i;
+} catch {
+  /* нет сохранённых — значения по умолчанию */
+}
+const hadSaved = thumbs !== DEFAULT_THUMBS && images !== DEFAULT_IMAGES;
+
+/**
+ * Хосты CDN из GET /config, иначе /cdn, иначе t1–t4 / i1–i4. Параллельные вызовы ждут один запрос.
+ * Ленты его почти не ждут: есть хосты с прошлого запуска — сразу, нет — не дольше `CDN_WAIT_MS`.
+ * Не удалось — попробуем при следующем вызове.
+ */
 export async function initCdn(): Promise<void> {
   if (!ready) {
-    ready = (async () => {
+    const job = (async () => {
       const cfg = await loadCdnConfig();
-      if (cfg?.thumb_servers?.length) thumbs = cfg.thumb_servers.map(trimSlash);
-      if (cfg?.image_servers?.length) images = cfg.image_servers.map(trimSlash);
+      if (!cfg) {
+        ready = null;
+        return;
+      }
+      if (cfg.thumb_servers?.length) thumbs = cfg.thumb_servers.map(trimSlash);
+      if (cfg.image_servers?.length) images = cfg.image_servers.map(trimSlash);
+      try {
+        localStorage.setItem(CDN_CACHE_KEY, JSON.stringify({ t: thumbs, i: images }));
+      } catch {
+        /* хранилище недоступно — не страшно */
+      }
     })();
+    ready = hadSaved ? Promise.resolve() : Promise.race([job, new Promise<void>((r) => setTimeout(r, CDN_WAIT_MS))]);
   }
   await ready;
 }

@@ -24,6 +24,7 @@ import {
 } from "../lib/recommendations";
 import { KEYS, subscribe } from "../lib/storage";
 import { useStableCallback } from "../lib/useStableCallback";
+import { PageBar } from "../shell/PageBar";
 import { Button, Icon, LoadingSpinner, NhModal, NoResultsPanel, Slider, Spinner, type IconName } from "../ui";
 
 export function RecommendationsScreen({ active = true }: { active?: boolean }) {
@@ -101,7 +102,7 @@ export function RecommendationsScreen({ active = true }: { active?: boolean }) {
   return (
     <div className="screen-fill library-screen">
       <div ref={scroller} className="screen-scroll ax-feed">
-        <div className="library-head">
+        <PageBar>
           <div className="list-sort-bar">
             <button type="button" className="list-sort-btn" onClick={() => setSheet(true)}>
               <Icon name="sliders" size={16} />
@@ -111,7 +112,7 @@ export function RecommendationsScreen({ active = true }: { active?: boolean }) {
               <Icon name="refresh-cw" size={16} />
             </button>
           </div>
-        </div>
+        </PageBar>
 
         {state === "loading" && (
           <div className="rec-loading">

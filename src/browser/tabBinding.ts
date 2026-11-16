@@ -6,7 +6,8 @@
  * Работает на ПК и на телефоне (на телефоне вкладка выбирается на экране вкладок).
  */
 import { activateNhAccount, isSwitchingNhAccount } from "../lib/nhAccounts";
-import { currentNhUserId, subscribeMe } from "../lib/session";
+import { nhLinkHooks } from "../lib/mlNhentai";
+import { accountIntent, currentNhUserId, subscribeMe } from "../lib/session";
 import { getItem, KEYS, removeItem, setItem, subscribeKey } from "../lib/storage";
 import { HOME_TAB_KEY } from "../screens/homeTabs";
 import { ACTIVE_TAB_KEY, getActiveTabId, getTabs, setBoundTabId, tabHooks, TABS_STORAGE_KEY, updateTabMeta, type BrowserTab } from "./tabs";
@@ -52,8 +53,9 @@ async function bindAccount(tab: BrowserTab) {
   if (tab.account === undefined) updateTabMeta(tab.id, { account: currentNhUserId() });
   else if (tab.account !== currentNhUserId()) {
     // Сессии этого аккаунта на устройстве нет — вкладку не переписываем (она общая с другими устройствами,
-    // там этот аккаунт может быть), клиент остаётся с тем, что есть
-    await activateNhAccount(tab.account);
+    // там этот аккаунт может быть). Клиент — без входа, а не под аккаунтом прошлой вкладки
+    const ok = await activateNhAccount(tab.account);
+    if (!ok && accountBoundId === tab.id) await activateNhAccount(null);
   }
 }
 
@@ -92,13 +94,27 @@ export function initTabBinding(): void {
     });
   }
 
-  // Вошли / вышли / добавили аккаунт в выбранной вкладке — запомнить в ней
+  // Аккаунт вкладки меняется только намеренно: вошли в окне входа или вышли (`accountIntent`).
+  // Раньше любая смена профиля переписывала вкладку — и сбой сессии, обновление токенов, запоздалый ответ
+  // профиля или другое устройство без этого аккаунта (вкладки общие через облако) сбрасывали её аккаунт.
+  accountIntent.onExplicit = (id) => {
+    const tab = accountBoundId ? getTabs().find((t) => t.id === accountBoundId) : undefined;
+    if (tab && tab.account !== id) updateTabMeta(tab.id, { account: id });
+  };
+  // Вкладка без аккаунта, и в ней вошли (в том числе не через окно входа) — запомнить
   subscribeMe(() => {
     if (!accountBoundId || isSwitchingNhAccount()) return;
     const id = currentNhUserId();
     const tab = getTabs().find((t) => t.id === accountBoundId);
-    if (tab && tab.account !== id) updateTabMeta(tab.id, { account: id });
+    if (tab && tab.account == null && id != null) updateTabMeta(tab.id, { account: id });
   });
+
+  // Вход «сам» после MoeLibre ID — только во вкладку, у которой ещё нет своего аккаунта
+  nhLinkHooks.canAutoSignIn = () => {
+    if (isSwitchingNhAccount()) return false;
+    const tab = getTabs().find((t) => t.id === getActiveTabId());
+    return !tab || tab.account === undefined;
+  };
 
   onActiveMaybeChanged();
 }

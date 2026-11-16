@@ -14,6 +14,7 @@ import { loadSearchHistory, rememberSearch } from "../lib/library";
 import { isNumericBookId } from "../lib/searchSuggest";
 import { KEYS, removeItem, setJSON } from "../lib/storage";
 import { FilterButton } from "../shell/AppHeader";
+import { SideMenuButton } from "../shell/SideMenu";
 import { Icon } from "../ui";
 import { useImagePicker } from "./ImageSearchScreen";
 
@@ -77,47 +78,45 @@ function MobileSearch() {
 
   return (
     <div className="screen-fill msr">
-      {/* Шапка как у остальных разделов: заголовок, теги и фильтры */}
-      <header className="ax-header msr-head">
-        <h1 className="ax-header-title">{t("nav.search")}</h1>
-        <div className="ax-header-actions">
-          <button type="button" className="ax-icon-btn" aria-label={t("menu.tags")} onClick={() => navigate("/tags")}>
-            <Icon name="tag" size={21} />
+      {/* Шапка — карточка панели, как на остальных экранах: меню, поле поиска (вместо адресной строки),
+          поиск по картинке, теги и фильтры */}
+      <div className="msr-panel">
+        <SideMenuButton />
+        <div className="msr-field">
+          <Icon name="search" size={20} className="msr-field-icon" />
+          <input
+            ref={input}
+            value={q}
+            placeholder={t("desk.search")}
+            enterKeyHint="search"
+            autoCapitalize="none"
+            autoCorrect="off"
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && commit()}
+          />
+          {q !== "" && (
+            <button
+              type="button"
+              className="msr-field-btn"
+              aria-label={t("common.reset")}
+              onClick={() => {
+                setQ("");
+                setParams({}, { replace: true });
+                input.current?.focus({ preventScroll: true });
+              }}
+            >
+              <Icon name="x" size={18} />
+            </button>
+          )}
+          <button type="button" className="msr-field-btn is-accent" aria-label={t("search.searchByImage")} onClick={imagePicker.pick}>
+            <Icon name="image" size={20} />
           </button>
-          <FilterButton />
+          {imagePicker.element}
         </div>
-      </header>
-
-      <div className="msr-field">
-        <Icon name="search" size={20} className="msr-field-icon" />
-        <input
-          ref={input}
-          value={q}
-          placeholder={t("search.placeholder")}
-          enterKeyHint="search"
-          autoCapitalize="none"
-          autoCorrect="off"
-          onChange={(e) => setQ(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && commit()}
-        />
-        {q !== "" && (
-          <button
-            type="button"
-            className="msr-field-btn"
-            aria-label={t("common.reset")}
-            onClick={() => {
-              setQ("");
-              setParams({}, { replace: true });
-              input.current?.focus({ preventScroll: true });
-            }}
-          >
-            <Icon name="x" size={18} />
-          </button>
-        )}
-        <button type="button" className="msr-field-btn is-accent" aria-label={t("search.searchByImage")} onClick={imagePicker.pick}>
-          <Icon name="image" size={20} />
+        <button type="button" className="ax-icon-btn" aria-label={t("menu.tags")} onClick={() => navigate("/tags")}>
+          <Icon name="tag" size={21} />
         </button>
-        {imagePicker.element}
+        <FilterButton />
       </div>
 
       {isNumericBookId(trimmed) && (

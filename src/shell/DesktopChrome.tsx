@@ -9,15 +9,14 @@
  *     с кнопками тегов, фильтров и «случайной книги».
  * Заголовок — область перетаскивания окна. Боковой панели нет. Содержимое лежит в скруглённой панели под заголовком.
  */
-import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
-import { NH_HOST } from "../api/client";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { getRandomGalleryId } from "../api/galleries";
 import logo from "../assets/logo.png";
 import { BrowserTabStrip } from "../browser/TabStrip";
 import { getActiveTabId, reloadTab, splitPath, useActiveRouter, useActiveTabId, useTabs } from "../browser/tabs";
 import { useI18n } from "../i18n/I18nContext";
-import { buildV2Query } from "../api/search";
-import { getPagesQuery, getSort, getTagFilters, getUploaded, useBrowseFilters } from "../lib/browseFilters";
+import { useBrowseFilters } from "../lib/browseFilters";
+import { webUrl } from "../lib/siteUrl";
 import { inTauri } from "../lib/downloads";
 import { useMe } from "../lib/session";
 import { getItem, setItem, subscribe } from "../lib/storage";
@@ -27,6 +26,8 @@ import { Icon, PageTabs } from "../ui";
 import { FilterButton } from "./AppHeader";
 import { useCloudState } from "../lib/cloudSync";
 import { NhAvatar } from "./TabAccount";
+import { setDeskBarTarget } from "./PageBar";
+import { useDeskPanel } from "./deskPanel";
 import { DeskSearch } from "./DeskSearch";
 import { openLogin } from "./LoginModal";
 import { ownProfileRoute } from "../lib/session";
@@ -44,12 +45,17 @@ export function DesktopTitleBar() {
   // Профиль справа — аккаунт MoeLibre ID (аккаунт nhentai привязывается к нему)
   const { account: ml } = useMl();
   const cloud = useCloudState();
-
+  // Панель лежит поверх экрана; прокрутили страницу вниз — сворачивается (`deskPanel.ts`)
+  const stripRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const activeId = useActiveTabId();
+  const homeTab = useSyncExternalStore((cb) => subscribe((key) => key === HOME_TAB_KEY && cb()), () => getItem(HOME_TAB_KEY) ?? "latest");
+  const compact = useDeskPanel(panelRef, stripRef, `${activeId}|${pathname}${location.search}|${homeTab}`);
 
   return (
-    <header className="dk-titlebar" data-tauri-drag-region>
+    <header className={compact ? "dk-titlebar is-compact" : "dk-titlebar"} data-tauri-drag-region>
       {/* 1. Вкладки браузера — свои кнопки и кнопки окна */}
-      <div className="dk-row dk-row-top" data-tauri-drag-region>
+      <div ref={stripRef} className="dk-row dk-row-top" data-tauri-drag-region>
         <BrowserTabStrip />
         <div className="dk-drag" data-tauri-drag-region />
         <div className="dk-actions">
@@ -83,6 +89,8 @@ export function DesktopTitleBar() {
         </div>
         {inTauri() && <WindowControls />}
       </div>
+      {/* Панель выбранной вкладки: разделы и адрес — одного цвета с выбранной вкладкой, «вырастают» из неё */}
+      <div ref={panelRef} className="dk-panel">
       {/* 2. Крупные вкладки на всю строку */}
       <div className="dk-row dk-row-nav" data-tauri-drag-region>
         <DeskTabs />
@@ -101,28 +109,12 @@ export function DesktopTitleBar() {
           </button>
         </div>
       </AddressBar>
+      {/* 4. Панель открытой страницы (`PageBar.tsx`): «назад + заголовок» внутреннего экрана, сортировка
+       *    и счётчик разделов библиотеки, действия книги. Пустая — не видна */}
+      <div className="dk-row dk-row-page" ref={setDeskBarTarget} />
+      </div>
     </header>
   );
-}
-
-/**
- * Поиск на сайте с тем же запросом, что уходит в API: текст, страницы, включённые и исключённые теги
- * (`tag:x -artist:"y z"`), дата загрузки, плюс сортировка. Без запроса и по дате — главная сайта.
- * Пробелы — `+`, двоеточия не кодируются (как в адресах сайта); кавычки, `<`, `>` и прочее — кодируются.
- */
-function webSearchUrl(text: string): string {
-  // Тот же запрос, что собирает лента (CatalogFeed → galleryBrowse): текст + страницы, включения, исключения, дата
-  const tags = getTagFilters();
-  const q = buildV2Query(
-    [text.trim(), getPagesQuery()].filter(Boolean).join(" "),
-    tags.filter((f) => f.mode !== "exclude"),
-    tags.filter((f) => f.mode === "exclude"),
-    getUploaded(),
-  ).trim();
-  const sort = getSort();
-  if (!q && sort === "date") return `${NH_HOST}/`;
-  const enc = encodeURIComponent(q || "*").replace(/%20/g, "+").replace(/%3A/gi, ":");
-  return `${NH_HOST}/search/?q=${enc}${sort !== "date" ? `&sort=${sort}` : ""}`;
 }
 
 /**
@@ -138,25 +130,6 @@ function usePageLocation(): { pathname: string; search: string } {
   return splitPath(tabs.find((t) => t.id === activeId)?.path ?? "/");
 }
 
-
-/** Ссылка на ту же страницу на сайте; `null` — у экрана нет страницы на сайте (загруженное, история…). */
-function webUrl(pathname: string, search: string, homeTab: string): string | null {
-  const params = new URLSearchParams(search);
-  const query = params.get("query")?.trim();
-  let m: RegExpMatchArray | null;
-  if ((pathname === "/" || pathname === "/explore") && query) return webSearchUrl(query);
-  if ((m = pathname.match(/^\/(?:book|read)\/(\d+)/))) return `${NH_HOST}/g/${m[1]}/`;
-  if ((m = pathname.match(/^\/profile\/(\d+)\/([^/]+)/))) return `${NH_HOST}/users/${m[1]}/${m[2]}/`;
-  if (pathname === "/tags") return `${NH_HOST}/tags/`;
-  if (pathname === "/favorites-online") return `${NH_HOST}/favorites/`;
-  if (pathname === "/search") return `${NH_HOST}/search/`;
-  if (pathname === "/") {
-    if (homeTab === "latest") return webSearchUrl("");
-    if (homeTab === "online") return `${NH_HOST}/favorites/`;
-    if (homeTab === "tags") return `${NH_HOST}/tags/`;
-  }
-  return null;
-}
 
 /**
  * Адресная строка, как у Steam: обновить, замок и адрес страницы на сайте. Нажатие по адресу копирует его,

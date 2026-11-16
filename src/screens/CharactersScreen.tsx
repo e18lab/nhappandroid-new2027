@@ -42,7 +42,7 @@ function buildGroups(items: CharacterCatalogItem[]): Group[] {
 }
 
 /** Часть страницы по рамке: страница растягивается так, чтобы рамка заняла весь контейнер. */
-const CroppedImage = memo(function CroppedImage({ url, rect }: { url: string | null; rect: CardRect | null }) {
+export const CroppedImage = memo(function CroppedImage({ url, rect }: { url: string | null; rect: CardRect | null }) {
   if (!url) return <div className="ch-image-empty" />;
   const style =
     rect && rect.width > 0 && rect.height > 0

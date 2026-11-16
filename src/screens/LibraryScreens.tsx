@@ -2,7 +2,7 @@
  * Закладки и история — перенос `app/favorites.tsx`, `app/history.tsx`, `components/BookListHistory.tsx`,
  * `components/ListSortBar.tsx`, `app/downloaded.tsx` (релиз 1.3.1).
  *
- * Сверху «N всего» и сортировка (по добавлению / году / алфавиту, ключи `ui.sort.favorites` / `ui.sort.history`).
+ * Сверху (в панели страницы, `PageBar`) «N всего» и сортировка (по добавлению / году / алфавиту, ключи `ui.sort.favorites` / `ui.sort.history`).
  * Закладки — сетка карточек. История «новые → старые» — по дням: капсула с датой,
  * над карточкой время и прогресс «12/20» или «✔»; при другой сортировке — обычная сетка.
  */
@@ -21,6 +21,7 @@ import { loadFavoriteIds, loadReadHistory, type ReadProgress } from "../lib/libr
 import { KEYS, getItem, setItem, subscribe } from "../lib/storage";
 import { useStableCallback } from "../lib/useStableCallback";
 import { FilterDropdown, Icon, LoadingSpinner, type IconName, type SelectItem } from "../ui";
+import { PageBar } from "../shell/PageBar";
 
 type ListSortValue = "added_desc" | "added_asc" | "year_desc" | "year_asc" | "alpha_asc" | "alpha_desc";
 const LIST_SORT_VALUES: ListSortValue[] = ["added_desc", "added_asc", "year_desc", "year_asc", "alpha_asc", "alpha_desc"];
@@ -178,9 +179,9 @@ export function SavedScreen({ kind }: { kind: "favorites" | "history" }) {
   return (
     <div className="screen-fill library-screen">
       <div className="screen-scroll">
-        <div className="library-head">
+        <PageBar>
           <ListSortBar count={sorted.length} sort={sort} onChange={setSort} />
-        </div>
+        </PageBar>
         {empty ? (
           <p className="library-empty">{emptyText}</p>
         ) : !cdnReady ? (
@@ -233,9 +234,9 @@ export function DownloadedScreen() {
   return (
     <div className="screen-fill library-screen">
       <div className="screen-scroll">
-        <div className="library-head">
+        <PageBar>
           <ListSortBar count={shown.length} sort={sort} onChange={setSort} />
-        </div>
+        </PageBar>
         {pending ? (
           <LoadingSpinner />
         ) : shown.length === 0 ? (

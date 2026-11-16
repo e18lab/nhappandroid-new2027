@@ -9,19 +9,25 @@ import "medeo-font/sans.css";
 import "./ui/ui.css";
 import "./styles.css";
 import "./ui/kit.css";
+import "./ui/refresh.css";
 import { initMlId } from "./lib/mlid";
 import { initMlNhentai } from "./lib/mlNhentai";
 import { initCloud } from "./lib/cloudSync";
 import { initTabBinding } from "./browser/tabBinding";
+import { installTooltips } from "./ui/tooltip";
 
 // MoeLibre ID: возврат из браузера после входа и профиль — до первой отрисовки
 initMlId();
 // Аккаунт nhentai из привязки MoeLibre: вход на новом устройстве и общие токены
 initMlNhentai();
+// Отладка: мост к MCP-серверу tools/app-mcp (только в разработке, в сборку не попадает)
+if (import.meta.env.DEV) void import("./dev/appBridge").then((m) => m.startAppBridge());
 // Облако MoeLibre (по умолчанию выключено; подключается, пока вошли в MoeLibre ID)
 initCloud();
 // У каждой вкладки свой аккаунт nhentai и свои фильтры каталога
 initTabBinding();
+// Подсказки кита вместо системных — у всех элементов с title
+installTooltips();
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>

@@ -1,6 +1,8 @@
 /**
  * Левое меню телефона (вместо логотипа в шапке) — в духе боковой панели браузера:
  *  - сверху аккаунт MoeLibre (облако, аккаунты) и настройки приложения;
+ *  - как в браузере: «назад / вперёд / обновить» и адрес открытой страницы на сайте (нажатие копирует,
+ *    стрелка — открыть в браузере), как адресная строка на ПК;
  *  - закреплённые вкладки — плитками (значок ресурса с аватаром аккаунта вкладки);
  *  - «Новая вкладка» (с выбором аккаунта), открытые вкладки списком, «Очистить» — закрыть незакреплённые;
  *  - у выбранной вкладки «•••» (закрепить, копия, закрыть), у любой — долгое нажатие;
@@ -8,7 +10,7 @@
  * Открывается кнопкой в шапке, закрывается тапом по затемнению, смахиванием влево или «Назад».
  */
 import { useEffect, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import logo from "../assets/logo.png";
 import { RESOURCES, resourceById } from "../browser/resources";
 import { ResourceMark, tabTitle } from "../browser/TabStrip";
@@ -19,6 +21,8 @@ import {
   devicePath,
   duplicateTab,
   getTabs,
+  reloadTab,
+  splitPath,
   togglePinTab,
   useActiveTabId,
   useTabs,
@@ -27,7 +31,12 @@ import {
 import { useI18n } from "../i18n/I18nContext";
 import { useCloudState } from "../lib/cloudSync";
 import { useMl } from "../lib/mlid";
-import { useSavedNhProfiles } from "../lib/nhAccounts";
+import { useBrowseFilters } from "../lib/browseFilters";
+import { useNhAccounts, useSavedNhProfiles } from "../lib/nhAccounts";
+import { webUrl } from "../lib/siteUrl";
+import { getItem, subscribe } from "../lib/storage";
+import { HOME_TAB_KEY } from "../screens/homeTabs";
+import { isWindowRoute } from "./windowRoutes";
 import { Icon } from "../ui";
 import { useBackHandler } from "./androidBack";
 import { openMlLogin } from "./MlLoginModal";
@@ -60,9 +69,9 @@ export function SideMenuButton() {
   const { t } = useI18n();
   const count = useTabs().length;
   return (
-    <button type="button" className="sm-btn" aria-label={t("sidemenu.open")} onClick={openSideMenu}>
+    <button type="button" className="lm-btn" aria-label={t("sidemenu.open")} onClick={openSideMenu}>
       <Icon name="menu" size={22} />
-      <span className="sm-btn-count">{count > 99 ? "99+" : count}</span>
+      <span className="lm-btn-count">{count > 99 ? "99+" : count}</span>
     </button>
   );
 }
@@ -88,12 +97,91 @@ export function SideMenu() {
   return <SideMenuPanel closing={!isOpen} />;
 }
 
+/** Адрес открытой во вкладке страницы на сайте; `local` — адрес внутри приложения, если на сайте её нет. */
+function useSiteAddress(): { url: string | null; local: string } {
+  const { pathname: here, search: hereSearch } = useLocation();
+  const tabs = useTabs();
+  const active = useActiveTabId();
+  const homeTab = useSyncExternalStore((cb) => subscribe((key) => key === HOME_TAB_KEY && cb()), () => getItem(HOME_TAB_KEY) ?? "latest");
+  useBrowseFilters();
+  // Поверх страницы открыто окно (настройки, профиль MoeLibre…) — адрес страницы под ним
+  const { pathname, search } = isWindowRoute(here) ? splitPath(tabs.find((x) => x.id === active)?.path ?? "/") : { pathname: here, search: hereSearch };
+  return { url: webUrl(pathname, search, homeTab), local: `moelibre:/${pathname === "/" ? `/${homeTab}` : pathname}` };
+}
+
+/** Страница в браузере устройства (в приложении — через opener, иначе новая вкладка). */
+async function openExternal(url: string) {
+  if ("__TAURI_INTERNALS__" in window) {
+    const { openUrl } = await import("@tauri-apps/plugin-opener");
+    await openUrl(url).catch(() => undefined);
+  } else window.open(url, "_blank", "noopener");
+}
+
+/** «Назад / вперёд / обновить» и адресная строка. */
+function BrowserBar() {
+  const { t } = useI18n();
+  const navigate = useNavigate();
+  const active = useActiveTabId();
+  const { url, local } = useSiteAddress();
+  const [copied, setCopied] = useState(false);
+  useEffect(() => setCopied(false), [url]);
+
+  const copy = () => {
+    if (!url) return;
+    void navigator.clipboard?.writeText(url).then(() => {
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    });
+  };
+
+  return (
+    <div className="lm-browser">
+      <div className="lm-nav">
+        <button type="button" aria-label={t("common.back")} onClick={() => navigate(-1)}>
+          <Icon name="arrow-left" size={20} />
+        </button>
+        <button type="button" aria-label={t("common.nextPage")} onClick={() => navigate(1)}>
+          <Icon name="arrow-right" size={20} />
+        </button>
+        <button
+          type="button"
+          aria-label={t("common.retry")}
+          onClick={() => {
+            closeSideMenu();
+            reloadTab(active);
+          }}
+        >
+          <Icon name="refresh-cw" size={18} />
+        </button>
+      </div>
+      <div className={url ? "lm-url" : "lm-url is-local"}>
+        <button type="button" className="lm-url-text" disabled={!url} onClick={copy}>
+          {url ? <Icon name={copied ? "check" : "lock"} size={13} /> : <img src={logo} alt="" />}
+          <span>{copied ? t("sidemenu.copied") : (url ?? local).replace(/^https:\/\//, "")}</span>
+        </button>
+        {url && (
+          <button type="button" className="lm-url-btn" aria-label={t("sidemenu.copyLink")} onClick={copy}>
+            <Icon name="copy" size={16} />
+          </button>
+        )}
+        {url && (
+          <button type="button" className="lm-url-btn" aria-label={t("sidemenu.openInBrowser")} onClick={() => void openExternal(url)}>
+            <Icon name="arrow-up-right" size={17} />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function SideMenuPanel({ closing }: { closing: boolean }) {
   const { t } = useI18n();
   const navigate = useNavigate();
   const tabs = useTabs();
   const active = useActiveTabId();
   const profiles = useSavedNhProfiles();
+  // Аккаунты, чьего профиля на устройстве нет (только привязаны к MoeLibre), — хотя бы по нику
+  const known = useNhAccounts();
   const { account: ml } = useMl();
   const cloud = useCloudState();
   const [picking, setPicking] = useState(false);
@@ -148,9 +236,11 @@ function SideMenuPanel({ closing }: { closing: boolean }) {
   const mark = (tab: BrowserTab, size = 18) => {
     const p = accountOf(tab);
     return (
-      <span className="sm-mark">
+      <span className="lm-mark">
         <ResourceMark res={resourceById(tab.resource)} />
-        {tab.account != null && <NhAvatar src={p?.avatar_url} name={p?.username} size={size * 0.7} className="sm-mark-acc" />}
+        {tab.account != null && (
+          <NhAvatar src={p?.avatar_url} name={p?.username ?? known.find((a) => a.id === tab.account)?.username} size={size * 0.7} className="lm-mark-acc" />
+        )}
       </span>
     );
   };
@@ -158,36 +248,38 @@ function SideMenuPanel({ closing }: { closing: boolean }) {
   const cloudLine = !ml ? t("sidemenu.mlSub") : cloud.enabled ? (cloud.status === "online" ? t("mlcloud.online") : t("mlcloud.connecting")) : t("mlcloud.off");
 
   return (
-    <div className={closing ? "sm-host is-closing" : "sm-host"}>
-      <div className="sm-dim" onClick={closeSideMenu} />
-      <div ref={panel} className="sm-panel" role="dialog" aria-label={t("sidemenu.title")} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
+    <div className={closing ? "lm-host is-closing" : "lm-host"}>
+      <div className="lm-dim" onClick={closeSideMenu} />
+      <div ref={panel} className="lm-panel" role="dialog" aria-label={t("sidemenu.title")} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
         {/* Аккаунт MoeLibre и настройки */}
-        <div className="sm-head">
-          <button type="button" className="sm-ml" onClick={() => (ml ? go("/mlid") : (closeSideMenu(), openMlLogin()))}>
-            <span className="sm-ml-ava">
+        <div className="lm-head">
+          <button type="button" className="lm-ml" onClick={() => (ml ? go("/mlid") : (closeSideMenu(), openMlLogin()))}>
+            <span className="lm-ml-ava">
               {ml?.avatar_url ? <img src={ml.avatar_url} alt="" referrerPolicy="no-referrer" /> : <img src={logo} alt="" />}
-              {ml && cloud.enabled && <i className={`sm-ml-dot is-${cloud.status}`} aria-hidden />}
+              {ml && cloud.enabled && <i className={`lm-ml-dot is-${cloud.status}`} aria-hidden />}
             </span>
-            <span className="sm-ml-text">
+            <span className="lm-ml-text">
               <b>{ml ? ml.display_name || "MoeLibre" : t("sidemenu.mlSignIn")}</b>
               <span>{cloudLine}</span>
             </span>
             <Icon name="chevron-right" size={18} />
           </button>
-          <button type="button" className="sm-icon" aria-label={t("menu.settings")} onClick={() => go("/settings")}>
+          <button type="button" className="lm-icon" aria-label={t("menu.settings")} onClick={() => go("/settings")}>
             <Icon name="settings" size={21} />
           </button>
         </div>
 
-        <div className="sm-scroll">
+        <BrowserBar />
+
+        <div className="lm-scroll">
           {/* Закреплённые — плитками */}
           {pinned.length > 0 && (
-            <div className="sm-pins">
+            <div className="lm-pins">
               {pinned.map((tab) => (
                 <button
                   key={tab.id}
                   type="button"
-                  className={tab.id === active ? "sm-pin is-active" : "sm-pin"}
+                  className={tab.id === active ? "lm-pin is-active" : "lm-pin"}
                   title={tabTitle(tab.path, resourceById(tab.resource), t)}
                   onClick={() => pick(tab.id)}
                   onContextMenu={(e) => {
@@ -201,7 +293,7 @@ function SideMenuPanel({ closing }: { closing: boolean }) {
             </div>
           )}
 
-          <div className="sm-section">
+          <div className="lm-section">
             <span>{t("tabs.title")}</span>
             {others.length > 0 && (
               <button type="button" onClick={closeUnpinnedTabs}>
@@ -210,11 +302,11 @@ function SideMenuPanel({ closing }: { closing: boolean }) {
             )}
           </div>
 
-          <button type="button" className="sm-row is-new" onClick={() => setPicking(true)}>
-            <span className="sm-row-icon">
+          <button type="button" className="lm-row is-new" onClick={() => setPicking(true)}>
+            <span className="lm-row-icon">
               <Icon name="plus" size={20} />
             </span>
-            <span className="sm-row-title">{t("tabs.new")}</span>
+            <span className="lm-row-title">{t("tabs.new")}</span>
           </button>
 
           {others.map((tab) => {
@@ -224,25 +316,25 @@ function SideMenuPanel({ closing }: { closing: boolean }) {
             return (
               <div
                 key={tab.id}
-                className={isActive ? "sm-row is-active" : "sm-row"}
+                className={isActive ? "lm-row is-active" : "lm-row"}
                 onContextMenu={(e) => {
                   e.preventDefault();
                   setActions(tab);
                 }}
               >
-                <button type="button" className="sm-row-main" onClick={() => pick(tab.id)}>
-                  <span className="sm-row-icon">{mark(tab)}</span>
-                  <span className="sm-row-title">
+                <button type="button" className="lm-row-main" onClick={() => pick(tab.id)}>
+                  <span className="lm-row-icon">{mark(tab)}</span>
+                  <span className="lm-row-title">
                     {tabTitle(tab.path, res, t)}
                     {isActive && <small>{tab.account ? (p?.username ?? `#${tab.account}`) : t("tabs.guest")}</small>}
                   </span>
                 </button>
                 {isActive && (
-                  <button type="button" className="sm-row-btn" aria-label={t("sidemenu.more")} onClick={() => setActions(tab)}>
+                  <button type="button" className="lm-row-btn" aria-label={t("sidemenu.more")} onClick={() => setActions(tab)}>
                     <Icon name="more-vertical" size={18} />
                   </button>
                 )}
-                <button type="button" className="sm-row-btn" aria-label={t("tabs.close")} onClick={() => closeTab(tab.id)}>
+                <button type="button" className="lm-row-btn" aria-label={t("tabs.close")} onClick={() => closeTab(tab.id)}>
                   <Icon name="x" size={18} />
                 </button>
               </div>
@@ -251,7 +343,7 @@ function SideMenuPanel({ closing }: { closing: boolean }) {
         </div>
 
         {/* Низ: все вкладки сеткой */}
-        <div className="sm-foot">
+        <div className="lm-foot">
           <button type="button" onClick={() => go("/tabs")}>
             <Icon name="grid" size={19} />
             <span>{t("sidemenu.allTabs")}</span>
@@ -277,7 +369,7 @@ function SideMenuPanel({ closing }: { closing: boolean }) {
 
       {actions && (
         <div className="nt-sheet-host" onClick={() => setActions(null)}>
-          <div className="nt-sheet sm-actions" onClick={(e) => e.stopPropagation()}>
+          <div className="nt-sheet lm-actions" onClick={(e) => e.stopPropagation()}>
             <div className="nt-sheet-title">{tabTitle(actions.path, resourceById(actions.resource), t)}</div>
             {[
               { icon: "bookmark" as const, label: actions.pinned ? t("sidemenu.unpin") : t("sidemenu.pin"), run: () => togglePinTab(actions.id) },

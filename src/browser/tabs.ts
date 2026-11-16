@@ -295,6 +295,9 @@ const IDLE_ROUTER: ActiveRouter = { location: { pathname: "/", search: "" }, nav
 let activeRouter: ActiveRouter = IDLE_ROUTER;
 const routerListeners = new Set<() => void>();
 
+/** Роутер выбранной вкладки вне React (отладочный мост). */
+export const getActiveRouter = (): ActiveRouter => activeRouter;
+
 export function setActiveRouter(r: ActiveRouter): void {
   activeRouter = r;
   for (const l of routerListeners) l();

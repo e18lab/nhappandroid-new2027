@@ -40,7 +40,9 @@ export async function register(
 export function refresh(refreshToken?: string): Promise<AuthTokens> {
   const token = refreshToken ?? loadRefreshToken();
   if (!token) return Promise.reject(new Error("No refresh token available"));
-  return nhApi.post<AuthTokens>("/auth/refresh", { refresh_token: token }, NO_AUTH);
+  // Без повторов на 429: обновление ждут переключение аккаунта и все запросы — полминуты ожидания хуже,
+  // чем один неудавшийся запрос (сессию при этом не считаем устаревшей, см. tryRefreshTokens)
+  return nhApi.post<AuthTokens>("/auth/refresh", { refresh_token: token }, { ...NO_AUTH, noRetry: true });
 }
 
 /** Отозвать текущую сессию на сервере (если получится) и забыть токены. */

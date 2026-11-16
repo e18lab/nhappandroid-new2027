@@ -22,7 +22,7 @@ function section(pathname: string): string {
 /** Экраны без правых иконок (hideRight в старом). */
 const HIDE_RIGHT = new Set(["mlid", "accounts", "tabs", "settings", "tags", "book", "profile", "community", "favorites", "favorites-online", "uikit", "image-search", "characters"]);
 
-export function TopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
+export function TopBar({ onOpenMenu, slotRef }: { onOpenMenu: () => void; /** Слот панели страницы (`PageBar.tsx`). */ slotRef?: (el: HTMLElement | null) => void }) {
   const { t } = useI18n();
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -147,6 +147,8 @@ export function TopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
           </button>
         </div>
       )}
+      {/* Элементы страницы (действия книги…) — справа на ПК, отдельной строкой на телефоне */}
+      <div className="topbar-slot" ref={slotRef} />
 
       <NhModal visible={backOpen} onClose={() => setBackOpen(false)} title={t("common.back")} sheetStyle={{ background: "var(--search-bg)" }}>
         <div className="back-sheet">

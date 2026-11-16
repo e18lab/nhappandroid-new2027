@@ -41,6 +41,10 @@ import { DownloadBanner, DownloadNotifier } from "./DownloadBanner";
 import { usePredictiveBack, useSwipeBack } from "./swipeBack";
 import { MobileTabBridge } from "../screens/TabsScreen";
 import { SideMenu } from "./SideMenu";
+import { AccountGate } from "./AccountNotice";
+import { useTabActive, useTabReloads } from "../browser/tabs";
+import { createPortal } from "react-dom";
+import { PageBarSlot, useDeskBarTarget } from "./PageBar";
 import { TopBar } from "./TopBar";
 import { isWindowRoute, WIDE_QUERY } from "./windowRoutes";
 
@@ -88,7 +92,8 @@ function motionFor(from: Location, to: Location, type: NavigationType, own: stri
   if (fromRoot && toRoot) {
     const a = navIndex(from.pathname, own);
     const b = navIndex(to.pathname, own);
-    if (a !== b) return b > a ? "tab-right" : "tab-left";
+    // Поиска в панели нет (он в шапке) — туда и обратно обычное открытие / закрытие, а не сдвиг вбок
+    if (a !== b && a >= 0 && b >= 0) return b > a ? "tab-right" : "tab-left";
   }
   if (type === "POP" || (toRoot && !fromRoot)) return "close";
   return "open";
@@ -121,6 +126,9 @@ export function Shell({
   // Экран под окном (широкий экран): тот же слой, что был до открытия окна
   const [base, setBase] = useState<Layer | null>(null);
   const wide = useWide();
+  // Телефон: «Обновить» в меню — экраны монтируются заново (на ПК у каждой вкладки свой каркас и свой ключ)
+  const reloads = useTabReloads();
+  const reloadKey = embedded || IS_DESKTOP ? 0 : reloads;
   const inWindow = (loc: Location) => wide && isWindowRoute(loc.pathname);
   const history = useRef<Location[]>([location]);
   const stack = useRef<HTMLDivElement>(null);
@@ -218,7 +226,7 @@ export function Shell({
 
   const renderLayer = (layer: Layer, className: string, windowed = false) => (
     <LayerView
-      key={layer.id}
+      key={`${layer.id}:${reloadKey}`}
       location={layer.location}
       className={className}
       title={rootTitle(layer.location, own)}
@@ -322,9 +330,21 @@ function ScreenLayer({
   const { t } = useI18n();
   const { pathname } = useLocation();
   const root = title !== undefined;
+  // ПК, обычный экран (не окно): строка «назад + заголовок» — в панели заголовка окна, а не над страницей
+  const deskBar = IS_DESKTOP && !onClose;
   // Какая шапка у слоя: «app» — шапка раздела, «top» — строка с «назад», null — без шапки
-  const head = root ? (onClose || IS_DESKTOP || pathname === "/settings" ? null : "app") : pathname.startsWith("/search") ? null : "top";
+  const head = root ? (onClose || IS_DESKTOP || pathname === "/settings" ? null : "app") : pathname.startsWith("/search") || deskBar ? null : "top";
   const ref = useRef<HTMLDivElement>(null);
+  // Слот панели страницы (`PageBar.tsx`): у внутренних экранов — в строке заголовка, у разделов на ПК — строка
+  // панели окна. Открыт только верхний слой выбранной вкладки
+  const deskTarget = useDeskBarTarget();
+  const tabActive = useTabActive();
+  const [topSlot, setTopSlot] = useState<HTMLElement | null>(null);
+  const active = tabActive && !/is-(exit|base|under)/.test(className);
+  const slot = useMemo(
+    () => ({ target: root ? (deskBar ? deskTarget : null) : topSlot, active }),
+    [root, deskBar, deskTarget, topSlot, active],
+  );
   useScrollHead(ref, head !== null, pathname === "/");
   const header = root ? (
     onClose ? (
@@ -335,13 +355,24 @@ function ScreenLayer({
       !IS_DESKTOP && pathname !== "/settings" && <AppHeader title={title ? t(title) : undefined} />
     )
   ) : (
-    !pathname.startsWith("/search") && <TopBar onOpenMenu={onOpenMenu} />
+    !pathname.startsWith("/search") &&
+    (deskBar ? (
+      active && deskTarget && createPortal(<TopBar onOpenMenu={onOpenMenu} slotRef={setTopSlot} />, deskTarget)
+    ) : (
+      <TopBar onOpenMenu={onOpenMenu} slotRef={setTopSlot} />
+    ))
   );
-  const cls = ["ax-layer", className, head && "has-head", head === "app" && "head-app"].filter(Boolean).join(" ");
+  // ПК: экран начинается под полосой вкладок, панель окна лежит поверх — у ленты отступ на её высоту (`deskPanel.ts`)
+  const cls = ["ax-layer", className, head && "has-head", head === "app" && "head-app", deskBar && "has-head dk-head"].filter(Boolean).join(" ");
   return (
     <div ref={ref} className={cls} aria-hidden={className.includes("is-exit") || undefined}>
       {header}
-      <div className="content">{children}</div>
+      {/* Сессия аккаунта вкладки устарела — экран «войдите» вместо страницы или карточка сверху */}
+      <PageBarSlot value={slot}>
+        <AccountGate pathname={pathname} root={root}>
+          {children}
+        </AccountGate>
+      </PageBarSlot>
     </div>
   );
 }

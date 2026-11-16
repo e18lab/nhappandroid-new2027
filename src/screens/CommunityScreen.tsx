@@ -2029,7 +2029,7 @@ function FilesMode({ locale: initialLocale, onOpenSubmission, reloadKey }: { loc
         {!me ? (
           <div className="cm-file-form">
             <p className="cm-empty is-small">{t("community.fileLogin")}</p>
-            <button type="button" className="ax-btn ax-btn-ghost" onClick={openLogin}>
+            <button type="button" className="ax-btn ax-btn-ghost" onClick={() => openLogin()}>
               {t("community.loginToEdit")}
             </button>
           </div>
