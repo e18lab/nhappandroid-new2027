@@ -11,7 +11,7 @@ import { getMeWithToken } from "../api/account";
 import { refresh as refreshTokens } from "../api/auth";
 import { ApiError, hasSession, loadAccessToken, loadAccountKey, loadRefreshToken, storeAccountKey, type NhAuth } from "../api/client";
 import type { Me } from "../api/types";
-import { pullNhSession, putNhSession, refreshNhLinks, useNhLink } from "./mlNhentai";
+import { nhLinkHooks, pullNhSession, putNhSession, refreshNhLinks, useNhLink } from "./mlNhentai";
 import { mlSignedIn } from "./mlid";
 import { currentNhUserId, isSwappingAuth, swapNhAccount, useMe } from "./session";
 import { getJSON, setJSON } from "./storage";
@@ -88,6 +88,9 @@ export function rememberSessionOf(me: Me): void {
   sessions = { ...sessions, [me.id]: next };
   save();
 }
+
+// Привязка MoeLibre забирает ключи устройства, которых у неё нет (`mlNhentai.ts`)
+nhLinkHooks.localKey = (id) => sessions[id]?.apiKey;
 
 /** Ключ аккаунта получен (создан после входа или пришёл из привязки) — запомнить. */
 export function rememberAccountKey(id: number, apiKey: string): void {
