@@ -26,6 +26,8 @@ import { getAll, getItem, KEYS, removeItem, setItem, subscribe } from "./storage
 export const ML_CLOUD_URL: string = (import.meta.env.VITE_ML_CLOUD_URL || "https://cloud.moelibre.cc").replace(/\/+$/, "");
 
 const FAV_OPS_KEY = "bookFavorites.ops.v1";
+const API_KEYS_KEY = "nhentai.apiKeys.v1";
+export const VAULT_NH_KEY = "vault.nhentai.v1";
 const META_KEY = "@local.cloud.t";
 const OFF_KEY = "@local.cloud.off";
 const STASH_PREFIX = "@local.stash.nhentai.";
@@ -72,6 +74,10 @@ const RES_KEYS = new Set<string>([
   "tagCollections.v1",
   KEYS.queryFavoritesOnline,
   KEYS.recommendationCalibration,
+  // Прежние ключи API открытым текстом — только чтобы стереть их из облака (`nhAccounts.ts`)
+  API_KEYS_KEY,
+  // Входы аккаунтов nhentai, зашифрованные ключом защиты (`nhAccounts.ts`, `vault.ts`)
+  VAULT_NH_KEY,
 ]);
 /** Раскладка своего типа устройства. */
 const LAYOUT_KEYS = new Set<string>([KEYS.galleryColumns, KEYS.gridConfig, KEYS.fullscreen]);
@@ -275,9 +281,13 @@ export interface CloudState {
   off: string[];
   /** Последняя ошибка записи (облако переполнено и т. п.). */
   error: string | null;
+  /** Задан ли у аккаунта ключ защиты (второй фактор); null — не знаем. */
+  vault: boolean | null;
+  /** Введён ли ключ защиты на этом устройстве (сервер пускает в облако); null — не знаем. */
+  granted: boolean | null;
 }
 
-let state: CloudState = { enabled: null, status: "off", pingMs: null, peers: [], lastSync: null, parts: [], off: readOff(), error: null };
+let state: CloudState = { enabled: null, status: "off", pingMs: null, peers: [], lastSync: null, parts: [], off: readOff(), error: null, vault: null, granted: null };
 const listeners = new Set<() => void>();
 
 function patch(next: Partial<CloudState>) {
@@ -360,7 +370,8 @@ function send(msg: unknown): boolean {
   }
 }
 
-const activeParts = () => (state.enabled ? deviceParts().filter(isPartOn) : []);
+// Без ключа защиты на устройстве сервер частей не отдаёт и записей не принимает
+const activeParts = () => (state.enabled && state.granted ? deviceParts().filter(isPartOn) : []);
 
 /** Сообщить серверу, какие части слушаем. `fresh` — часть, которую надо получить заново (включили на устройстве). */
 function resubscribe(fresh: string | null = null) {
@@ -470,7 +481,12 @@ function onMessage(event: MessageEvent) {
       ready = true;
       reconnectAttempt = 0;
       loaded.clear();
-      patch({ status: "online", enabled: msg.enabled === true, error: null });
+      patch({ status: "online", enabled: msg.enabled === true, error: null, vault: msg.vault === true, granted: msg.granted === true });
+      resubscribe();
+      return;
+    case "vault":
+      loaded.clear();
+      patch({ vault: msg.vault === true, granted: msg.granted === true });
       resubscribe();
       return;
     case "state":
@@ -494,6 +510,7 @@ function onMessage(event: MessageEvent) {
       return;
     case "nack":
       if (msg.code === "cloud_disabled") patch({ enabled: false, parts: [] });
+      else if (msg.code === "vault_locked") patch({ granted: false, parts: [] });
       else patch({ error: String(msg.code) });
       return;
     case "peers":
@@ -579,7 +596,7 @@ function disconnect() {
       /* уже закрыт */
     }
   }
-  patch({ status: "off", enabled: null, pingMs: null, peers: [], lastSync: null, parts: [] });
+  patch({ status: "off", enabled: null, pingMs: null, peers: [], lastSync: null, parts: [], vault: null, granted: null });
 }
 
 /** Синхронизировать сейчас: переподключиться — сервер пришлёт части заново, устройство отправит своё. */
@@ -662,14 +679,25 @@ export function clearLibraryAfterLogout(): void {
 export interface CloudInfo {
   enabled: boolean;
   enabled_at: string | null;
+  vault: boolean;
+  granted: boolean;
   parts: { part: string; bytes: number; keys: number; updated_at: string }[];
   imports: { source: string; external_id: string; decision: "imported" | "declined"; decided_at: string }[];
 }
 
-export const fetchCloudInfo = () => mlFetch<CloudInfo>(`${ML_CLOUD_URL}/v1/cloud`);
+export async function fetchCloudInfo(): Promise<CloudInfo> {
+  const info = await mlFetch<CloudInfo>(`${ML_CLOUD_URL}/v1/cloud?device=${encodeURIComponent(getDeviceId())}`);
+  if (info.granted !== state.granted || info.vault !== state.vault) {
+    loaded.clear();
+    patch({ vault: info.vault, granted: info.granted });
+    resubscribe();
+  }
+  return info;
+}
 
+/** Включить облако: только на устройстве, где введён ключ защиты (`vault.ts`). */
 export async function enableCloud(): Promise<void> {
-  await mlFetch(`${ML_CLOUD_URL}/v1/cloud/enable`, { method: "POST" });
+  await mlFetch(`${ML_CLOUD_URL}/v1/cloud/enable`, { method: "POST", body: JSON.stringify({ device_id: getDeviceId() }) });
   loaded.clear();
   patch({ enabled: true });
   resubscribe();
@@ -684,7 +712,7 @@ export async function disableCloud(wipe: boolean): Promise<void> {
 
 /** Копия облака файлом. */
 export async function exportCloud(): Promise<void> {
-  const data = await mlFetch<unknown>(`${ML_CLOUD_URL}/v1/cloud/export`);
+  const data = await mlFetch<unknown>(`${ML_CLOUD_URL}/v1/cloud/export?device=${encodeURIComponent(getDeviceId())}`);
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);

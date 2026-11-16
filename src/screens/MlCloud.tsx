@@ -30,9 +30,10 @@ import {
   type CloudState,
 } from "../lib/cloudSync";
 import { getDeviceId } from "../lib/device";
-import { MlError } from "../lib/mlid";
+import { MlError, useMl } from "../lib/mlid";
 import { useNhLink } from "../lib/mlNhentai";
 import { useNhAccounts } from "../lib/nhAccounts";
+import { createVaultKey, isVaultKeyLike, resetVaultKey, unlockVault, useVaultSecret } from "../lib/vault";
 import { useMe } from "../lib/session";
 import { timeAgo } from "../lib/timeAgo";
 import { Icon, Spinner, useToast } from "../ui";
@@ -111,6 +112,7 @@ export function MlCloudCard() {
   const cloud = useCloudState();
   const [info] = useCloudInfo([cloud.enabled]);
   const pendingImports = useImportsPending(cloud.enabled ? info : null);
+  const hasSecret = useVaultSecret();
 
   if (cloud.enabled === null) {
     return (
@@ -142,6 +144,26 @@ export function MlCloudCard() {
           </span>
           <button type="button" className="ml-btn is-primary" onClick={() => navigate("/mlid/cloud/setup")}>
             {t("mlcloud.enable")}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Облако включено, а на этом устройстве ключ защиты не введён — данные не синхронизируются
+  if (cloud.granted === false || (cloud.granted && !hasSecret)) {
+    return (
+      <div className="ml-cloud is-disabled">
+        <div className="ml-cloud-head">
+          <span className="ml-cloud-icon">
+            <Icon name="lock" size={22} />
+          </span>
+          <span className="ml-cloud-text">
+            <b>{t("mlcloud.vault.locked")}</b>
+            <span className="is-wrap">{t("mlcloud.vault.lockedSub")}</span>
+          </span>
+          <button type="button" className="ml-btn is-primary" onClick={() => navigate("/mlid/cloud/setup")}>
+            {t("mlcloud.vault.unlock")}
           </button>
         </div>
       </div>
@@ -242,6 +264,173 @@ function PartRow({ part, server, children }: { part: string; server?: CloudInfo[
   );
 }
 
+// ─── Ключ защиты (второй фактор) ──────────────────────────────────────────────
+
+/**
+ * Ключ защиты на устройстве: создать (у аккаунта ещё нет), ввести (есть) или сменить (`reset`). Созданный ключ
+ * показывается один раз — `onReady` только после отметки «Я сохранил ключ».
+ */
+function VaultPanel({ info, reset, onReady }: { info: CloudInfo | null; reset?: boolean; onReady: () => void }) {
+  const { t } = useI18n();
+  const navigate = useNavigate();
+  const toast = useToast();
+  const hasSecret = useVaultSecret();
+  const mfa = !!useMl().account?.mfa;
+  const [shown, setShown] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [input, setInput] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [armed, setArmed] = useState(false);
+
+  const act = async (fn: () => Promise<void>) => {
+    setBusy(true);
+    try {
+      await fn();
+    } catch (e) {
+      toast.showToast({ title: errText(t, e), type: "error" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (shown) {
+    const copy = () => void navigator.clipboard?.writeText(shown).then(() => setCopied(true));
+    const download = () => {
+      const url = URL.createObjectURL(new Blob([`MoeLibre Cloud - ${t("mlcloud.vault.title")}\n\n${shown}\n`], { type: "text/plain" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "moelibre-cloud-key.txt";
+      a.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    };
+    return (
+      <div className="ml-vault">
+        <b>{t("mlcloud.vault.shownTitle")}</b>
+        <p>{t("mlcloud.vault.shownLead")}</p>
+        <code className="ml-vault-key">{shown}</code>
+        <div className="ml-vault-actions">
+          <button type="button" className="ml-btn is-soft" style={ML_RED} onClick={copy}>
+            <Icon name={copied ? "check" : "copy"} size={16} /> {copied ? t("mlcloud.vault.copied") : t("mlcloud.vault.copy")}
+          </button>
+          <button type="button" className="ml-btn is-soft" style={ML_RED} onClick={download}>
+            <Icon name="download" size={16} /> {t("mlcloud.vault.download")}
+          </button>
+        </div>
+        <label className="ml-vault-check">
+          <input type="checkbox" checked={saved} onChange={(e) => setSaved(e.target.checked)} />
+          <span>{t("mlcloud.vault.saved")}</span>
+        </label>
+        <button
+          type="button"
+          className="ml-btn is-primary is-wide"
+          disabled={!saved}
+          onClick={() => {
+            setShown(null);
+            onReady();
+          }}
+        >
+          {t("mlcloud.vault.done")}
+        </button>
+      </div>
+    );
+  }
+
+  if (!info) {
+    return (
+      <div className="ml-vault">
+        <Spinner size={18} />
+      </div>
+    );
+  }
+
+  // Облако — только с аутентификатором MoeLibre ID (второй фактор входа)
+  if (!mfa) {
+    return (
+      <div className="ml-vault">
+        <b>{t("mlcloud.vault.needMfa")}</b>
+        <p>{t("mlcloud.vault.needMfaLead")}</p>
+        <button type="button" className="ml-btn is-primary is-wide" onClick={() => navigate("/mlid/security")}>
+          <Icon name="shield" size={16} /> {t("mlid.mfa.enable")}
+        </button>
+      </div>
+    );
+  }
+
+  if (reset) {
+    return (
+      <div className="ml-vault">
+        <b>{t("mlcloud.vault.resetTitle")}</b>
+        <p>{t("mlcloud.vault.resetLead")}</p>
+        <button
+          type="button"
+          className="ml-btn is-primary is-wide"
+          disabled={busy}
+          onClick={() => {
+            if (!armed) return setArmed(true);
+            void act(async () => setShown(await resetVaultKey()));
+          }}
+        >
+          {busy ? <Spinner size={16} /> : armed ? t("mlcloud.confirmAgain") : t("mlcloud.vault.resetConfirm")}
+        </button>
+      </div>
+    );
+  }
+
+  if (!info.vault) {
+    return (
+      <div className="ml-vault">
+        <b>{t("mlcloud.vault.title")}</b>
+        <p>{t("mlcloud.vault.createLead")}</p>
+        <button type="button" className="ml-btn is-primary is-wide" disabled={busy} onClick={() => void act(async () => setShown(await createVaultKey()))}>
+          {busy ? <Spinner size={16} /> : t("mlcloud.vault.create")}
+        </button>
+      </div>
+    );
+  }
+
+  if (info.granted && hasSecret) {
+    return (
+      <div className="ml-vault is-ok">
+        <Icon name="check-circle" size={18} />
+        <span>{t("mlcloud.vault.ok")}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="ml-vault">
+      <b>{t("mlcloud.vault.title")}</b>
+      <p>{t("mlcloud.vault.enterLead")}</p>
+      <input
+        className="ml-vault-input"
+        value={input}
+        placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"
+        autoCapitalize="characters"
+        autoComplete="off"
+        spellCheck={false}
+        onChange={(e) => setInput(e.target.value)}
+      />
+      <button
+        type="button"
+        className="ml-btn is-primary is-wide"
+        disabled={busy || !isVaultKeyLike(input)}
+        onClick={() =>
+          void act(async () => {
+            await unlockVault(input);
+            onReady();
+          })
+        }
+      >
+        {busy ? <Spinner size={16} /> : t("mlcloud.vault.confirm")}
+      </button>
+      <button type="button" className="ml-vault-lost" onClick={() => navigate("/mlid/cloud/setup?reset=1", { replace: true })}>
+        {t("mlcloud.vault.lost")}
+      </button>
+    </div>
+  );
+}
+
 // ─── Включение ────────────────────────────────────────────────────────────────
 
 export function MlCloudSetupScreen() {
@@ -251,7 +440,23 @@ export function MlCloudSetupScreen() {
   const cloud = useCloudState();
   const nh = useNhLink();
   const [busy, setBusy] = useState(false);
+  const { search } = useLocation();
+  const reset = new URLSearchParams(search).get("reset") === "1";
+  const [info, reloadInfo] = useCloudInfo();
+  const hasSecret = useVaultSecret();
+  // Ключ защиты готов на устройстве (второй фактор) — только тогда облако можно включить
+  const vaultReady = !!info?.granted && hasSecret;
   void cloud.off;
+
+  // Облако уже включено, ключ ввели (разблокировали устройство) или сменили — назад в профиль
+  const onVaultReady = () => {
+    reloadInfo();
+    if (cloud.enabled) {
+      syncNow();
+      toast.showToast({ title: t("mlcloud.vault.unlocked") });
+      navigate("/mlid", { replace: true });
+    }
+  };
 
   const enable = async () => {
     setBusy(true);
@@ -270,6 +475,22 @@ export function MlCloudSetupScreen() {
   };
 
   const others = (nh.accounts ?? []).filter((a) => !deviceParts().includes(`acc:nhentai:${a.id}`));
+
+  // Облако уже включено (или меняем ключ): здесь только ключ защиты
+  if (cloud.enabled || reset) {
+    return (
+      <div className="screen-scroll ml-acc">
+        <section className="ml-setup-hero">
+          <span className="ml-cloud-icon is-big">
+            <Icon name="shield" size={30} />
+          </span>
+          <h2>{t("mlcloud.vault.title")}</h2>
+          <p>{t("mlcloud.vault.lead")}</p>
+        </section>
+        <VaultPanel info={info} reset={reset} onReady={onVaultReady} />
+      </div>
+    );
+  }
 
   return (
     <div className="screen-scroll ml-acc">
@@ -303,7 +524,13 @@ export function MlCloudSetupScreen() {
         </div>
       </div>
 
-      <button type="button" className="ml-btn is-primary is-big is-wide" onClick={() => void enable()} disabled={busy}>
+      <div className="ml-sec-head">
+        <h3>{t("mlcloud.vault.title")}</h3>
+      </div>
+      <p className="ml-note">{t("mlcloud.vault.lead")}</p>
+      <VaultPanel info={info} onReady={reloadInfo} />
+
+      <button type="button" className="ml-btn is-primary is-big is-wide" onClick={() => void enable()} disabled={busy || !vaultReady}>
         {busy ? <Spinner size={18} /> : t("mlcloud.enableConfirm")}
       </button>
     </div>
@@ -566,6 +793,7 @@ export function MlCloudManageScreen() {
       <p className="ml-page-lead">{info ? t("mlcloud.manageLead", { parts: info.parts.length, size: fmtBytes(total) }) : t("mlcloud.connecting")}</p>
       <div className="ml-panel">
         <ManageRow icon="download" title={t("mlcloud.export")} sub={t("mlcloud.exportSub")} busy={busy === "export"} disabled={busy != null} onClick={() => void run("export", exportCloud)} />
+        <ManageRow icon="key" title={t("mlcloud.vault.manageRow")} sub={t("mlcloud.vault.manageRowSub")} disabled={busy != null} onClick={() => navigate("/mlid/cloud/setup?reset=1")} />
         <ManageRow icon="upload" title={t("mlcloud.reimport")} sub={t("mlcloud.reimportSub")} disabled={busy != null} onClick={() => navigate("/mlid/cloud/import?all=1")} />
       </div>
       <div className="ml-sec-head">

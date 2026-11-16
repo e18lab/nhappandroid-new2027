@@ -15,6 +15,7 @@ import { FavoritesOnlineScreen } from "./screens/FavoritesOnlineScreen";
 import { ProfileScreen } from "./screens/ProfileScreen";
 import { ProfileEditScreen } from "./screens/ProfileEditScreen";
 import { MeScreen } from "./screens/MeScreen";
+import { MlSecurityScreen } from "./screens/MlSecurity";
 import { MlCloudDataScreen, MlCloudDevicesScreen, MlCloudImportScreen, MlCloudManageScreen, MlCloudSetupScreen } from "./screens/MlCloud";
 import { TabsScreen } from "./screens/TabsScreen";
 import { NhAccountsScreen } from "./screens/NhAccountsScreen";
@@ -57,6 +58,7 @@ const appRoutes = (
     <Route path="/mlid/cloud/data" element={<MlCloudDataScreen />} />
     <Route path="/mlid/cloud/devices" element={<MlCloudDevicesScreen />} />
     <Route path="/mlid/cloud/setup" element={<MlCloudSetupScreen />} />
+    <Route path="/mlid/security" element={<MlSecurityScreen />} />
     <Route path="/mlid/cloud/import" element={<MlCloudImportScreen />} />
     <Route path="/mlid/cloud/manage" element={<MlCloudManageScreen />} />
     <Route path="/favorites-online" element={<FavoritesOnlineScreen />} />

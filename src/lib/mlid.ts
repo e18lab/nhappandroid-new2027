@@ -34,6 +34,8 @@ export interface MlAccount {
   display_name: string;
   avatar_url: string | null;
   created_at: string;
+  /** Включён аутентификатор (второй фактор входа). */
+  mfa?: boolean;
 }
 
 export interface MlProfile {
@@ -78,6 +80,8 @@ export type MlLoginState =
   | { phase: "idle"; linked?: MlProvider }
   | { phase: "waiting"; provider: MlProvider; link?: boolean }
   | { phase: "exchanging"; link?: boolean }
+  /** Вход у провайдера прошёл — ждём код аутентификатора (`submitMlMfa`). */
+  | { phase: "mfa"; ticket: string; link?: boolean; provider?: MlProvider; busy?: boolean; error?: string }
   | { phase: "error"; code: string; link?: boolean };
 
 interface MlState {
@@ -280,10 +284,15 @@ export async function handleMlCallback(rawUrl: string): Promise<boolean> {
   }
   set({ login: { phase: "exchanging", link } });
   try {
-    const pair = await call<TokenPair>("/auth/exchange", {
+    const pair = await call<TokenPair | { mfa_required: true; mfa_ticket: string }>("/auth/exchange", {
       method: "POST",
       body: JSON.stringify({ code, code_verifier: pending.verifier, device_id: getDeviceId(), device_name: getDeviceName() }),
     });
+    // Включён аутентификатор — сессии нет, пока не введут код
+    if ("mfa_required" in pair) {
+      set({ login: { phase: "mfa", ticket: pair.mfa_ticket, link, provider: pending.provider } });
+      return true;
+    }
     keep(pair);
     set({ account: pair.account ?? null, login: { phase: "idle", linked: link ? pending.provider : undefined } });
     void refreshMlProfile();
@@ -291,6 +300,60 @@ export async function handleMlCallback(rawUrl: string): Promise<boolean> {
     set({ login: { phase: "error", code: e instanceof MlError ? e.code : "login_failed", link } });
   }
   return true;
+}
+
+/** Код аутентификатора (или резервный) для входа, который ждёт второго фактора. */
+export async function submitMlMfa(code: string): Promise<void> {
+  const login = state.login;
+  if (login.phase !== "mfa") return;
+  set({ login: { ...login, busy: true, error: undefined } });
+  try {
+    const pair = await call<TokenPair>("/auth/mfa", { method: "POST", body: JSON.stringify({ mfa_ticket: login.ticket, code }) });
+    keep(pair);
+    set({ account: pair.account ?? null, login: { phase: "idle", linked: login.link ? login.provider : undefined } });
+    void refreshMlProfile();
+  } catch (e) {
+    const code = e instanceof MlError ? e.code : "login_failed";
+    // Билет истёк или попытки кончились — вход заново
+    if (code === "mfa_ticket_expired") set({ login: { phase: "error", code, link: login.link } });
+    else set({ login: { ...login, busy: false, error: code } });
+  }
+}
+
+// ─── Аутентификатор ───────────────────────────────────────────────────────────
+
+export interface MlMfaStatus {
+  enabled: boolean;
+  recovery_left: number;
+}
+
+export const getMlMfa = () => mlFetch<MlMfaStatus>(`${ML_ID_URL}/me/mfa`);
+
+/** Новый секрет аутентификатора (ещё не включён): `uri` — `otpauth://` для приложения-аутентификатора. */
+export const setupMlMfa = () => mlFetch<{ secret: string; uri: string }>(`${ML_ID_URL}/me/mfa/setup`, { method: "POST" });
+
+/** Токен с новой отметкой `mfa` — сразу, а не через 15 минут (облако смотрит на неё). */
+async function reissue() {
+  if (stored) stored = { ...stored, accessExp: 0 };
+  await accessToken().catch(() => undefined);
+  await refreshMlProfile();
+}
+
+/** Подтвердить кодом и включить. Ответ — резервные коды (показать один раз). */
+export async function enableMlMfa(code: string): Promise<string[]> {
+  const r = await mlFetch<{ recovery_codes: string[] }>(`${ML_ID_URL}/me/mfa/enable`, { method: "POST", body: JSON.stringify({ code }) });
+  await reissue();
+  return r.recovery_codes;
+}
+
+export async function disableMlMfa(code: string): Promise<void> {
+  await mlFetch(`${ML_ID_URL}/me/mfa/disable`, { method: "POST", body: JSON.stringify({ code }) });
+  await reissue();
+}
+
+/** Новые резервные коды (старые перестают действовать). */
+export async function regenerateMlRecovery(code: string): Promise<string[]> {
+  return (await mlFetch<{ recovery_codes: string[] }>(`${ML_ID_URL}/me/mfa/recovery`, { method: "POST", body: JSON.stringify({ code }) })).recovery_codes;
 }
 
 // ─── Профиль, устройства, выход ───────────────────────────────────────────────

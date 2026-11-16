@@ -71,6 +71,7 @@ export function routeTitle(path: string, t: T, o: RouteTitleOptions = {}): strin
     case "tabs":
       return t("tabs.title");
     case "mlid":
+      if (parts[2] === "security") return t("mlid.mfa.title");
       return parts[3] ? t(`mlcloud.${parts[3]}`) : t("mlid.account");
     case "uikit":
       return t("uikit.title");

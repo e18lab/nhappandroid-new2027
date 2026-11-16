@@ -9,12 +9,14 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { getMeWithToken } from "../api/account";
 import { refresh as refreshTokens } from "../api/auth";
-import { ApiError, hasSession, loadAccessToken, loadAccountKey, loadRefreshToken, storeAccountKey, type NhAuth } from "../api/client";
+import { ApiError, hasSession, hasUserSession, loadAccessToken, loadAccountKey, loadRefreshToken, storeAccountKey, type NhAuth } from "../api/client";
 import type { Me } from "../api/types";
 import { nhLinkHooks, pullNhSession, putNhSession, refreshNhLinks, useNhLink } from "./mlNhentai";
 import { mlSignedIn } from "./mlid";
 import { currentNhUserId, isSwappingAuth, swapNhAccount, useMe } from "./session";
-import { getJSON, setJSON } from "./storage";
+import { getItem, getJSON, removeItem, setItem, setJSON, subscribeKey } from "./storage";
+import { VAULT_NH_KEY } from "./cloudSync";
+import { hasVaultSecret, openJSON, sealJSON, subscribeVault } from "./vault";
 
 const SESSIONS_KEY = "@auth.nh.sessions";
 
@@ -46,8 +48,129 @@ function notify() {
 
 function save() {
   setJSON(SESSIONS_KEY, sessions);
+  schedulePublish();
   notify();
 }
+
+// ─── Входы в облаке: зашифрованы ключом защиты ────────────────────────────────
+// Токены и ключи API аккаунтов уходят в облако только зашифрованными ключом защиты (`vault.ts`): одной записью
+// `vault.nhentai.v1` (часть `res:nhentai`). Сервер и тот, кто получит базу, их не прочитают; устройство с ключом
+// защиты расшифровывает и входит само. У каждого аккаунта — время изменения `at`: побеждает более позднее.
+// Выход на одном устройстве другие не трогает; отозванный ключ и отвергнутую сессию другим не раздаём.
+
+interface VaultEntry {
+  access?: string;
+  refresh?: string;
+  apiKey?: string;
+  me?: Me;
+  at: number;
+}
+type VaultBook = Record<string, VaultEntry>;
+
+/** Когда менялся вход аккаунта на устройстве и каким он был (отпечаток): `id → {at, sig}`. */
+const VAULT_AT = "@local.vault.nh.at";
+/** Прежняя запись ключей открытым текстом — стирается и на устройстве, и в облаке. */
+const PLAIN_KEYS = "nhentai.apiKeys.v1";
+
+const sig = (s: Saved | undefined) => `${fp(s?.access) ?? ""}|${fp(s?.refresh) ?? ""}|${fp(s?.apiKey) ?? ""}`;
+const readAts = () => getJSON<Record<string, { at: number; sig: string }>>(VAULT_AT, {});
+
+/** Отвергнутое nhentai — не раздавать: отозванные ключи и мёртвые токены обновления (отпечатки). */
+const rejected = new Set<string>();
+let book: VaultBook = {};
+/** Последнее, что записали сами (зашифрованное) — своё же изменение не разбираем. */
+let lastSealed: string | null = null;
+let publishTimer = 0;
+
+function schedulePublish() {
+  window.clearTimeout(publishTimer);
+  publishTimer = window.setTimeout(() => void publishVault(), 800);
+}
+
+async function publishVault() {
+  if (!hasVaultSecret()) return;
+  const ats = readAts();
+  let atsChanged = false;
+  const next: VaultBook = { ...book };
+  for (const [id, s] of Object.entries(sessions)) {
+    const g = sig(s);
+    if (ats[id]?.sig !== g) {
+      ats[id] = { at: Date.now(), sig: g };
+      atsChanged = true;
+    }
+    const prev = next[id];
+    if (prev && prev.at >= ats[id].at) continue;
+    // Чего на устройстве нет (вышли, сессия устарела) — оставляем из облака
+    const pair = s.access && s.refresh ? { access: s.access, refresh: s.refresh } : prev?.access ? { access: prev.access, refresh: prev.refresh } : {};
+    const apiKey = s.apiKey ?? prev?.apiKey;
+    next[id] = { ...pair, ...(apiKey ? { apiKey } : {}), me: s.me ?? prev?.me, at: ats[id].at };
+  }
+  for (const e of Object.values(next)) {
+    if (e.apiKey && rejected.has(fp(e.apiKey)!)) delete e.apiKey;
+    if (e.refresh && rejected.has(fp(e.refresh)!)) {
+      delete e.access;
+      delete e.refresh;
+    }
+  }
+  if (atsChanged) setJSON(VAULT_AT, ats);
+  const same = JSON.stringify(next) === JSON.stringify(book);
+  book = next;
+  if (same && lastSealed && getItem(VAULT_NH_KEY) === lastSealed) return;
+  const sealed = await sealJSON(book);
+  if (!sealed) return;
+  lastSealed = sealed;
+  setItem(VAULT_NH_KEY, sealed);
+}
+
+/** Пришла запись из облака: расшифровать, взять более свежие входы. */
+async function receiveVault() {
+  const raw = getItem(VAULT_NH_KEY);
+  if (!hasVaultSecret()) return;
+  if (raw && raw !== lastSealed) {
+    const remote = await openJSON<VaultBook>(raw);
+    // Не расшифровать (зашифровано прежним ключом защиты) — перезаписать своим
+    if (remote && typeof remote === "object") {
+      for (const [id, e] of Object.entries(remote)) if (e && typeof e.at === "number" && (!book[id] || e.at > book[id].at)) book[id] = e;
+    }
+  }
+  const ats = readAts();
+  let next = sessions;
+  for (const [id, e] of Object.entries(book)) {
+    if (e.at <= (ats[id]?.at ?? 0)) continue;
+    const cur = next[id];
+    const pair = e.access && e.refresh && !rejected.has(fp(e.refresh)!) ? { access: e.access, refresh: e.refresh } : null;
+    const key = e.apiKey && !rejected.has(fp(e.apiKey)!) ? e.apiKey : null;
+    const updated: Saved = { ...cur, ...(pair ? { ...pair, expired: undefined, dead: undefined } : {}), ...(key ? { apiKey: key } : {}), me: cur?.me ?? e.me };
+    next = { ...next, [id]: updated };
+    ats[id] = { at: e.at, sig: sig(updated) };
+    // Открытый сейчас аккаунт без рабочего входа — сразу войти
+    if (currentNhUserId() === Number(id)) {
+      if (pair && !hasUserSession() && !isSwappingAuth()) void swapNhAccount({ ...pair, ...(key ? { apiKey: key } : {}) }, updated.me, Number(id));
+      else if (key && !loadAccountKey()) storeAccountKey(key);
+    }
+  }
+  setJSON(VAULT_AT, ats);
+  if (next !== sessions) {
+    sessions = next;
+    setJSON(SESSIONS_KEY, sessions);
+    notify();
+  }
+  schedulePublish();
+}
+
+subscribeKey(VAULT_NH_KEY, () => void receiveVault());
+subscribeVault(() => {
+  lastSealed = null;
+  book = {};
+  void receiveVault();
+});
+// Прежние ключи открытым текстом — стереть (удаление уйдёт и в облако)
+const dropPlain = () => getItem(PLAIN_KEYS) != null && removeItem(PLAIN_KEYS);
+subscribeKey(PLAIN_KEYS, dropPlain);
+queueMicrotask(() => {
+  dropPlain();
+  void receiveVault();
+});
 
 /** Запомнить сессию текущего аккаунта (после входа, обновления токенов, загрузки профиля). */
 export function rememberCurrentSession(me?: Me | null): void {
@@ -91,6 +214,10 @@ export function rememberSessionOf(me: Me): void {
 
 // Привязка MoeLibre забирает ключи устройства, которых у неё нет (`mlNhentai.ts`)
 nhLinkHooks.localKey = (id) => sessions[id]?.apiKey;
+nhLinkHooks.localAuth = (id) => {
+  const x = sessions[id];
+  return x ? { access: x.access, refresh: x.refresh, apiKey: x.apiKey } : undefined;
+};
 
 /** Ключ аккаунта получен (создан после входа или пришёл из привязки) — запомнить. */
 export function rememberAccountKey(id: number, apiKey: string): void {
@@ -107,6 +234,7 @@ export function dropAccountKey(apiKey: string): void {
   const { apiKey: _k, ...rest } = sessions[id];
   void _k;
   sessions = { ...sessions, [id]: rest };
+  rejected.add(fp(apiKey)!);
   save();
 }
 
@@ -129,6 +257,7 @@ export function markSessionExpired(id: number | null, deadRefresh?: string | nul
   if (!id) return;
   const prev = sessions[id];
   const dead = fp(deadRefresh) ?? prev?.dead;
+  if (dead) rejected.add(dead);
   if (prev?.expired && !prev.access && prev.dead === dead) return;
   sessions = { ...sessions, [id]: { ...(prev?.apiKey ? { apiKey: prev.apiKey } : {}), me: prev?.me, expired: true, ...(dead ? { dead } : {}) } };
   save();

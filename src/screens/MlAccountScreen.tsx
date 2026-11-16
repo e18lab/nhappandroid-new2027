@@ -306,6 +306,19 @@ export function MlAccountScreen() {
       </section>
 
       <div className="ml-sec-head">
+        <h3>{t("mlid.mfa.section")}</h3>
+      </div>
+      {/* Аутентификатор — второй фактор входа; без него облако не включается */}
+      <button type="button" className={account?.mfa ? "ml-cloud-link ml-mfa-row is-on" : "ml-cloud-link ml-mfa-row"} onClick={() => navigate("/mlid/security")}>
+        <Icon name="shield" size={18} />
+        <span>
+          <b>{t("mlid.mfa.title")}</b>
+          <span>{account?.mfa ? t("mlid.mfa.on") : t("mlid.mfa.offShort")}</span>
+        </span>
+        <Icon name="chevron-right" size={18} />
+      </button>
+
+      <div className="ml-sec-head">
         <h3>{t("mlcloud.title")}</h3>
       </div>
       <MlCloudCard />

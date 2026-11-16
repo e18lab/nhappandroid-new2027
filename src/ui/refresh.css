@@ -1095,3 +1095,33 @@ html:not(.is-desktop) .book-dock .book-read.has-sub > svg { display: none; }
 .back-sheet .back-sheet-row { display: flex; align-items: center; gap: 12px; text-align: left; }
 .back-sheet .back-sheet-row > svg { flex: none; color: var(--sub); }
 .back-sheet .back-sheet-row > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Ключ защиты облака (второй фактор) */
+.ml-vault { display: flex; flex-direction: column; gap: 10px; margin: 8px 0 16px; padding: 16px; border-radius: 16px; background: var(--ax-surface); }
+.ml-vault > b { font-size: 15px; }
+.ml-vault > p { margin: 0; color: var(--sub); font-size: 13.5px; line-height: 1.45; }
+.ml-vault.is-ok { flex-direction: row; align-items: center; color: #22c55e; font-weight: 600; }
+.ml-vault-key { display: block; padding: 14px; border-radius: 12px; background: var(--ax-surface-2); font: 600 16px/1.5 ui-monospace, "Cascadia Mono", Consolas, monospace; letter-spacing: .04em; text-align: center; word-break: break-all; user-select: all; }
+.ml-vault-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.ml-vault-actions .ml-btn { display: inline-flex; align-items: center; gap: 6px; }
+.ml-vault-check { display: flex; align-items: center; gap: 10px; font-size: 14px; cursor: pointer; }
+.ml-vault-check input { width: 18px; height: 18px; accent-color: #ff4040; }
+.ml-vault-input { width: 100%; box-sizing: border-box; padding: 12px 14px; border: 1px solid var(--ax-line); border-radius: 12px; background: var(--ax-surface-2); color: inherit; font: 600 15px ui-monospace, "Cascadia Mono", Consolas, monospace; letter-spacing: .04em; text-transform: uppercase; }
+.ml-vault-input:focus { outline: none; border-color: #ff4040; }
+.ml-vault-lost { align-self: center; border: 0; background: none; color: var(--sub); font-size: 13px; text-decoration: underline; cursor: pointer; }
+
+/* Аутентификатор MoeLibre ID */
+.ml-mfa-row { width: 100%; margin-bottom: 8px; border-radius: 16px; background: var(--ax-surface); }
+.ml-mfa-row > svg:first-child { color: var(--sub); }
+.ml-mfa-row.is-on > svg:first-child { color: #22c55e; }
+.ml-mfa-form { display: flex; gap: 8px; }
+.ml-mfa-form .ml-mfa-input { flex: 1; min-width: 0; }
+.ml-mfa-input { box-sizing: border-box; width: 100%; padding: 12px 14px; border: 1px solid var(--ax-line); border-radius: 12px; background: var(--ax-surface-2); color: inherit; font: 600 18px ui-monospace, "Cascadia Mono", Consolas, monospace; letter-spacing: .12em; text-align: center; }
+.ml-mfa-input:focus { outline: none; border-color: #ff4040; }
+.ml-mfa-codes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.ml-mfa-codes code { padding: 8px; border-radius: 10px; background: var(--ax-surface-2); font: 600 14px ui-monospace, "Cascadia Mono", Consolas, monospace; text-align: center; user-select: all; }
+.ml-login-mfa { display: flex; flex-direction: column; align-items: center; gap: 10px; margin: 8px 0 4px; text-align: center; }
+.ml-login-mfa > svg { color: #ff4040; }
+.ml-login-mfa > span { color: var(--sub); font-size: 13.5px; }
+.ml-mfa-error { color: #ef4444 !important; }
+a.ml-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; text-decoration: none; }

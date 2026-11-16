@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import mlIdLogo from "../assets/brand/ml-id.svg";
 import { useI18n } from "../i18n/I18nContext";
-import { cancelMlLogin, startMlLogin, useMl, type MlProvider } from "../lib/mlid";
+import { cancelMlLogin, startMlLogin, submitMlMfa, useMl, type MlProvider } from "../lib/mlid";
 import { Icon, Spinner } from "../ui";
 import { ProviderMark } from "../ui/ProviderMark";
 import { useBackHandler } from "./androidBack";
@@ -34,7 +34,9 @@ export function MlLoginHost() {
       openListener = null;
     };
   }, []);
-  return <MlLoginModal visible={open} onClose={() => setOpen(false)} />;
+  // Код аутентификатора нужен и при привязке способа входа из профиля — окно открывается само
+  const { login } = useMl();
+  return <MlLoginModal visible={open || login.phase === "mfa"} onClose={() => setOpen(false)} />;
 }
 
 export function MlLoginModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
@@ -42,8 +44,9 @@ export function MlLoginModal({ visible, onClose }: { visible: boolean; onClose: 
   const { account, login } = useMl();
   const [lastProvider, setLastProvider] = useState<MlProvider>("google");
 
+  const [code, setCode] = useState("");
   const close = () => {
-    if (login.phase === "waiting") cancelMlLogin();
+    if (login.phase === "waiting" || login.phase === "mfa") cancelMlLogin();
     onClose();
   };
   useBackHandler(visible, close);
@@ -82,7 +85,32 @@ export function MlLoginModal({ visible, onClose }: { visible: boolean; onClose: 
           <h2 className="ml-login-title">{t("mlid.title")}</h2>
           <p className="ml-login-sub">{t("mlid.subtitle")}</p>
 
-          {login.phase === "waiting" || login.phase === "exchanging" ? (
+          {login.phase === "mfa" ? (
+            <form
+              className="ml-login-mfa"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (code.trim().length >= 6) void submitMlMfa(code);
+              }}
+            >
+              <Icon name="shield" size={28} />
+              <b>{t("mlid.mfa.loginTitle")}</b>
+              <span>{t("mlid.mfa.loginSub")}</span>
+              <input
+                className="ml-mfa-input"
+                value={code}
+                inputMode="text"
+                autoComplete="one-time-code"
+                autoFocus
+                placeholder="123 456"
+                onChange={(e) => setCode(e.target.value)}
+              />
+              {login.error && <span className="ml-mfa-error">{errorText(login.error)}</span>}
+              <button type="submit" className="ml-btn is-primary is-wide" disabled={login.busy || code.trim().length < 6}>
+                {login.busy ? <Spinner size={16} /> : t("mlid.mfa.signIn")}
+              </button>
+            </form>
+          ) : login.phase === "waiting" || login.phase === "exchanging" ? (
             <div className="ml-login-wait">
               <Spinner size={28} />
               <b>{login.phase === "waiting" ? t("mlid.waiting") : t("mlid.exchanging")}</b>
