@@ -15,6 +15,7 @@ import { useCardView, type CardShow } from "../lib/cardView";
 import { useBookTitle } from "../lib/titleTranslations";
 import { Icon } from "../ui";
 import { BookCard } from "./BookCard";
+import { useBookContextMenu } from "./BookContextMenu";
 import { BookGrid, useGridMetrics } from "./BookGrid";
 import { BookMenuButton, BookRow, fmtCount, useBookFacts } from "./BookRow";
 import { SmartImage } from "./SmartImage";
@@ -113,9 +114,11 @@ export const PosterCard = memo(function PosterCard({ book, show, onPress, onRead
   const title = useBookTitle(book);
   const sub = [show.meta && facts.pages ? t("book.pagesShort", { count: facts.pages }) : "", show.date ? facts.date : ""].filter(Boolean);
   const onCover = show.meta && (facts.lang || book.favorites);
+  const menu = useBookContextMenu(book, onPress);
 
   return (
-    <div className="ax-poster" role="button" tabIndex={0} onClick={() => onPress(book)}>
+    <div className="ax-poster" role="button" tabIndex={0} onClick={() => onPress(book)} onContextMenu={menu.open}>
+      {menu.element}
       <div className={hidden ? "ax-poster-cover is-blacklisted" : "ax-poster-cover"}>
         <SmartImage sources={thumbSources(book.cover)} />
         {show.newBadge && facts.isNew && <span className="ax-row-new">{t("book.new")}</span>}

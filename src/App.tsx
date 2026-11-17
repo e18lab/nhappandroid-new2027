@@ -21,6 +21,7 @@ import { TabsScreen } from "./screens/TabsScreen";
 import { NhAccountsScreen } from "./screens/NhAccountsScreen";
 import { MlAccountScreen } from "./screens/MlAccountScreen";
 import { I18nProvider } from "./i18n/I18nContext";
+import { ForYouScreen, ForYouShelfScreen } from "./screens/ForYouScreen";
 import { RecommendationsScreen } from "./screens/RecommendationsScreen";
 import { CharactersScreen } from "./screens/CharactersScreen";
 import { ImageSearchScreen } from "./screens/ImageSearchScreen";
@@ -66,7 +67,9 @@ const appRoutes = (
     <Route path="/profile/:id/:slug/edit" element={<ProfileEditScreen />} />
     <Route path="/community" element={<CommunityScreen />} />
     <Route path="/characters" element={<CharactersScreen />} />
-    <Route path="/recommendations" element={<RecommendationsScreen />} />
+    <Route path="/recommendations" element={<ForYouScreen />} />
+    <Route path="/recommendations/device" element={<RecommendationsScreen />} />
+    <Route path="/foryou/:shelf" element={<ForYouShelfScreen />} />
     <Route path="/login" element={<NoteScreen titleKey="menu.login" textKey="notes.login" />} />
     <Route path="*" element={<NoteScreen titleKey="notes.notFoundTitle" textKey="notes.notFoundText" />} />
   </Routes>

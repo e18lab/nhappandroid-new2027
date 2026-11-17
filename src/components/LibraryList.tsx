@@ -14,7 +14,7 @@ const LIBRARY: { labelKey: string; icon: IconName; route: string; needsLogin?: b
   { labelKey: "menu.favoritesOnline", icon: "heart", route: "/favorites-online", needsLogin: true },
   { labelKey: "menu.history", icon: "clock", route: "/history" },
   { labelKey: "menu.tags", icon: "tag", route: "/tags" },
-  { labelKey: "menu.recommendations", icon: "star", route: "/recommendations" },
+  { labelKey: "foryou.tab", icon: "star", route: "/recommendations" },
 ];
 
 /** Маршруты библиотеки — в нижней панели они относятся к «Главной». */

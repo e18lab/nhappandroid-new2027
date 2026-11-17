@@ -1970,22 +1970,6 @@ button.comment-name { padding: 0; border: 0; background: none; font-family: inhe
 .sm-confirm-text { white-space: pre-line; overflow-wrap: anywhere; }
 
 /* ── Загрузки: полоса под шапкой (DownloadProgressBanner) и кольцо на кнопке книги (book/Ring) ── */
-.dl-banner {
-  flex: none;
-  width: 100%;
-  padding: 10px 20px;
-  display: block;
-  border: 0;
-  background: var(--accent);
-  color: var(--bg);
-  text-align: left;
-}
-.dl-banner:disabled { opacity: 1; }
-.dl-banner-row { display: flex; align-items: center; gap: 10px; }
-.dl-banner-title { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 13px; font-weight: 700; }
-.dl-banner-pct { font-size: 12px; font-weight: 700; }
-.dl-banner-track { margin-top: 8px; height: 4px; display: block; background: color-mix(in srgb, var(--bg) 33%, transparent); }
-.dl-banner-track > span { height: 100%; display: block; background: var(--bg); transition: width 0.2s; }
 .book-pill.is-active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); color: var(--accent); }
 .dl-ring { position: relative; width: 20px; height: 20px; display: grid; place-items: center; color: var(--accent); }
 .dl-ring .ring { position: absolute; inset: 0; }

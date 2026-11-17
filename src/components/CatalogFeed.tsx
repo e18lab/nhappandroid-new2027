@@ -13,6 +13,8 @@ import { TabIdContext } from "../browser/tabs";
 import { useLocation, useNavigate } from "react-router-dom";
 import { galleryCardToBook, type Book } from "../api/book";
 import { PER_PAGE } from "../api/galleries";
+import { usePullToRefresh } from "../ui/PullToRefresh";
+import { PicksShelf } from "../screens/ForYouScreen";
 import { fetchGalleryBrowsePaginated, totalFromPaginated } from "../api/galleryBrowse";
 import { initCdn } from "../api/media";
 import type { SortOrder } from "../api/types";
@@ -223,6 +225,21 @@ export function CatalogFeed({ query = "", sort: fixedSort }: { query?: string; s
     // loadMore читает актуальные page/books через замыкание текущего рендера
   });
 
+  // Телефон: потянуть ленту вниз — первая страница заново (прокрутка и подгруженное сбрасываются)
+  const ptr = usePullToRefresh(scroller, async () => {
+    const data = await fetchPage(query, 1, sort);
+    rememberFirstPage(feedKey(query, sort), data);
+    rememberCards(data.result);
+    setBooks(data.result.map(galleryCardToBook));
+    setPage(1);
+    setTotalPages(Math.max(1, Math.ceil(totalFromPaginated(data) / PER_PAGE)));
+    setMoreError(false);
+    setState(data.result.length ? "ready" : "empty");
+  });
+
+  // Запрос для «Для вас»: без префикса типа («artist:») и кавычек
+  const picksQuery = query.trim().replace(/^[a-z]+:/i, "").replace(/["']/g, "").trim();
+
   const openBook = useStableCallback((book: Book) => navigate(`/book/${book.id}?title=${encodeURIComponent(book.title.pretty)}`));
   const readBook = useStableCallback((book: Book) => navigate(`/read/${book.id}`));
 
@@ -260,6 +277,7 @@ export function CatalogFeed({ query = "", sort: fixedSort }: { query?: string; s
 
   return (
     <div ref={scroller} className="screen-scroll ax-feed">
+      {ptr}
       {/* Сессия устарела / нет ключа API — карточка в начале ленты (листается вместе с ней) */}
       <AccountNoticeSlot />
       {state === "loading" && <LoadingSpinner />}
@@ -271,6 +289,11 @@ export function CatalogFeed({ query = "", sort: fixedSort }: { query?: string; s
       )}
       {state === "ready" && (
         <>
+          {/* Поиск: сверху — книги по запросу под ваш вкус (персонаж, пародия, художник…), ниже — обычная выдача */}
+          {picksQuery && (
+            // Ключ с фильтрами: выбрали / убрали тег — подборка пересчитывается с ним
+            <PicksShelf key={`${picksQuery}|${JSON.stringify(filters)}`} target={{ kind: "search", query: picksQuery }} min={8} pad={14} className="fy-search" kicker={t("foryou.searchKicker")} />
+          )}
           <BookCollection books={visible} enrich={false} onPress={openBook} onRead={readBook} />
           <div ref={sentinel} className="ax-feed-foot">
             {moreError ? (

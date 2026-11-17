@@ -14,6 +14,7 @@ import { tagMode, toggleIncludeTag, useTagFilters } from "../lib/browseFilters";
 import { useTagLabel } from "../lib/tagTranslations";
 import { useBookTitle } from "../lib/titleTranslations";
 import { Icon, Spinner } from "../ui";
+import { useBookContextMenu } from "./BookContextMenu";
 import { SmartImage } from "./SmartImage";
 
 type ChipType = "artist" | "parody" | "character" | "category" | "tag";
@@ -67,6 +68,7 @@ export const BookCard = memo(function BookCard({
   useTagFilters();
   const tagLabel = useTagLabel();
   const title = useBookTitle(book);
+  const menu = useBookContextMenu(book, onPress);
 
   const lang = bookLanguage(book);
   const langShort = (() => {
@@ -142,7 +144,8 @@ export const BookCard = memo(function BookCard({
   const more = chips.length - collapsedCount;
 
   return (
-    <div ref={root} className="book-card" style={{ width: cardWidth }} role="button" tabIndex={0} onClick={() => onPress?.(book)}>
+    <div ref={root} className="book-card" style={{ width: cardWidth }} role="button" tabIndex={0} onClick={() => onPress?.(book)} onContextMenu={menu.open}>
+      {menu.element}
       <div className={hidden ? "book-card-cover is-blacklisted" : "book-card-cover"} style={{ height: Math.round(cardWidth * 1.4) }}>
         <SmartImage sources={thumbSources(book.cover)} />
         {hidden && (

@@ -16,10 +16,11 @@ export interface HomeTabMeta {
 }
 
 export const HOME_TABS: HomeTabMeta[] = [
+  // «Для вас» — первой; «Обзор» (бывшее «Новое») — каталог, его содержимое задают фильтры
+  { key: "recommendations", labelKey: "foryou.tab" },
   { key: "latest", labelKey: "home.tabs.latest" },
   // На телефоне сообщество — в нижней панели, на ПК её нет
   { key: "community", labelKey: "nav.community", desktopOnly: true },
-  { key: "recommendations", labelKey: "menu.recommendations" },
   { key: "downloaded", labelKey: "menu.downloaded" },
   { key: "favorites", labelKey: "menu.favorites" },
   { key: "online", labelKey: "menu.favoritesOnline", needsLogin: true },

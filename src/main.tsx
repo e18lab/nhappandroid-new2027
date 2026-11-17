@@ -18,6 +18,15 @@ import { initCloud } from "./lib/cloudSync";
 import { initTabBinding } from "./browser/tabBinding";
 import { installTooltips } from "./ui/tooltip";
 
+// Системное меню WebView («Назад», «Печать», «Сохранить как»…) не показываем нигде: у карточек тайтлов,
+// вкладок и т. п. своё. Оставлено только в полях ввода (вставить, вырезать) — и всё, что открыло своё
+// меню, уже вызвало preventDefault.
+window.addEventListener("contextmenu", (e) => {
+  const el = e.target as HTMLElement | null;
+  if (el?.closest?.("input, textarea, [contenteditable]:not([contenteditable='false'])")) return;
+  e.preventDefault();
+});
+
 // MoeLibre ID: возврат из браузера после входа и профиль — до первой отрисовки
 initMlId();
 // Аккаунт nhentai из привязки MoeLibre: вход на новом устройстве и общие токены

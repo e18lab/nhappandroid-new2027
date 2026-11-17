@@ -276,7 +276,6 @@ export function Shell({
   const main = (
       <div className={`main${hiddenTab}`}>
         <div className="top-chrome" />
-        {active && <DownloadBanner />}
         {!embedded && <DownloadNotifier />}
         <BackStackContext.Provider value={backStack}>
         <div ref={stack} className="ax-stack">
@@ -287,6 +286,7 @@ export function Shell({
         </div>
         </BackStackContext.Provider>
         {nav && <BottomNav />}
+        {active && <DownloadBanner />}
         {active && <OverlayScrollbar />}
         {!embedded && <LoginHost />}
         {!embedded && <MlLoginHost />}

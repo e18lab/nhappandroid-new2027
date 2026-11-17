@@ -41,7 +41,9 @@ export function routeTitle(path: string, t: T, o: RouteTitleOptions = {}): strin
     case "downloaded":
       return t("menu.downloaded");
     case "recommendations":
-      return t("menu.recommendations");
+      return t("foryou.tab");
+    case "foryou":
+      return params.get("title") || t("foryou.tab");
     case "image-search":
       return t("search.imageSearchResultsTitle");
     case "characters":

@@ -65,6 +65,8 @@ function patch(next: Partial<DownloadState>) {
   state = { ...state, ...next };
   for (const fn of listeners) fn();
 }
+// Отладка в браузере (только dev): `__mlDownloads.patch({ active: true, progress: 0.48, … })` — показать плашку
+if (import.meta.env.DEV && typeof window !== "undefined") (window as unknown as { __mlDownloads: unknown }).__mlDownloads = { patch };
 
 export function useDownloadState(): DownloadState {
   return useSyncExternalStore(

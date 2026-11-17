@@ -37,6 +37,8 @@ import { openLogin } from "../shell/LoginModal";
 import { PageBar } from "../shell/PageBar";
 import { cachedCharacterCatalog, getCharacterCatalog, type CharacterCatalogItem } from "../api/community";
 import { CroppedImage } from "./CharactersScreen";
+import { useRecoWho } from "./ForYouScreen";
+import { loadPicks, useHiddenFromRecommendations } from "../lib/forYou";
 
 const PAGE_GAP = 10;
 /** Сколько страниц в строке предпросмотра галереи. */
@@ -82,13 +84,17 @@ function useColumns(wide: boolean) {
 
 const NO_TITLE = { english: "", japanese: "", pretty: "" };
 
+/** Откуда «Похожие» на странице книги: MoeLibre (по умолчанию) или nhentai. */
+const RELATED_SRC_KEY = "ui.book.relatedSource";
+
 export function BookScreen() {
   const { id = "" } = useParams();
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const { t, resolved } = useI18n();
   const { showToast } = useToast();
-  useBrowseFilters();
+  // Фильтры каталога: выбранные теги учитываются и в «Похожих» от MoeLibre
+  const browseFilters = useBrowseFilters();
   const galleryId = Number(id);
   const fromRandom = params.get("random") === "1";
   const wide = useWide();
@@ -115,6 +121,26 @@ export function BookScreen() {
   const pageRef = useRef<HTMLDivElement>(null);
   const lastY = useRef(0);
   const relatedEnriched = useEnrichedBooks(related);
+  // «Похожие»: от MoeLibre (сервер рекомендаций — та же франшиза и персонажи, с учётом вашего вкуса) или от nhentai
+  const [relSrc, setRelSrc] = useState<"moelibre" | "nhentai">(() => (getItem(RELATED_SRC_KEY) === "nhentai" ? "nhentai" : "moelibre"));
+  const chooseRelSrc = (v: "moelibre" | "nhentai") => {
+    setRelSrc(v);
+    setItem(RELATED_SRC_KEY, v);
+  };
+  const recoWho = useRecoWho();
+  const hiddenReco = useHiddenFromRecommendations();
+  const [picks, setPicks] = useState<{ books: Book[]; more: boolean } | "error" | null>(null);
+  useEffect(() => {
+    if (relSrc !== "moelibre" || !galleryId) return;
+    let cancelled = false;
+    setPicks(null);
+    loadPicks(resolved, recoWho, { kind: "book", book: galleryId }, 0, 24)
+      .then((r) => !cancelled && setPicks({ books: r.books, more: r.next != null }))
+      .catch(() => !cancelled && setPicks("error"));
+    return () => {
+      cancelled = true;
+    };
+  }, [relSrc, galleryId, recoWho, resolved, browseFilters]);
   const [isLocal, setIsLocal] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const dl = useDownloadState();
@@ -542,20 +568,45 @@ export function BookScreen() {
             </section>
           )}
 
-          <section className="bk-section">
-            <div className="bk-sec-head">
-              <h2>{t("related")}</h2>
-            </div>
-            {relLoading ? (
-              <LoadingSpinner />
-            ) : (
-              <Shelf className="bk-related">
-                {relatedEnriched.map((b) => (
-                  <BookCard key={b.id} book={b} cardWidth={relatedW} onPress={(x) => navigate(`/book/${x.id}?title=${encodeURIComponent(x.title.pretty)}`)} />
-                ))}
-              </Shelf>
-            )}
-          </section>
+          {/* «Похожие»: от MoeLibre (по умолчанию) или от nhentai. MoeLibre не ответил / пусто — список nhentai */}
+          {(() => {
+            const fromMl = relSrc === "moelibre" && picks !== "error" && !(picks && picks.books.length === 0);
+            const list = fromMl ? (picks ? picks.books.filter((b) => !hiddenReco.has(b.id)) : null) : relLoading ? null : relatedEnriched;
+            const openBook = (x: Book) => navigate(`/book/${x.id}?title=${encodeURIComponent(x.title.pretty)}`);
+            return (
+              <section className="bk-section">
+                <div className="bk-sec-head">
+                  <h2>{t("related")}</h2>
+                  <div className="bk-src" role="radiogroup" aria-label={t("related")}>
+                    {(["moelibre", "nhentai"] as const).map((v) => (
+                      <button key={v} type="button" role="radio" aria-checked={relSrc === v} className={relSrc === v ? "is-on" : undefined} onClick={() => chooseRelSrc(v)}>
+                        {v === "moelibre" ? "MoeLibre" : "nhentai"}
+                      </button>
+                    ))}
+                  </div>
+                  {fromMl && picks && picks.more && (
+                    <button
+                      type="button"
+                      className="bk-sec-btn"
+                      onClick={() => navigate(`/foryou/${encodeURIComponent(`book:${galleryId}`)}?title=${encodeURIComponent(`${t("related")} · MoeLibre`)}`)}
+                    >
+                      {t("foryou.more")}
+                      <Icon name="chevron-right" size={16} />
+                    </button>
+                  )}
+                </div>
+                {list == null ? (
+                  <LoadingSpinner />
+                ) : (
+                  <Shelf className="bk-related">
+                    {list.map((b) => (
+                      <BookCard key={b.id} book={b} cardWidth={relatedW} onPress={openBook} />
+                    ))}
+                  </Shelf>
+                )}
+              </section>
+            );
+          })()}
         </div>
       </div>
 

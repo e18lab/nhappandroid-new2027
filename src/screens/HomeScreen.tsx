@@ -2,7 +2,7 @@
  * Главная — редизайн в духе Anixart. Сверху вкладки, листаются свайпом вбок:
  * «Новое» (каталог с бесконечной подгрузкой; сортировка — в фильтрах у поиска),
  * на ПК — «Сообщество» (страница выбирается в выпадающем меню вкладки; на телефоне это раздел нижней панели),
- * «Рекомендации»,
+ * «Для вас» (рекомендации с сервера, `ForYouScreen`),
  * дальше разделы библиотеки: загруженное, закладки, онлайн-избранное (после входа), история, теги.
  * Открытый раздел запоминается (`ui.home.tab`) — у каждой вкладки браузера свой, синхронизируется с другими устройствами.
  * На ПК полоса вкладок — в заголовке окна (`DesktopChrome.tsx`), здесь только лента страниц.
@@ -23,7 +23,7 @@ import { CommunityPage, useCommunityMenu } from "./CommunityScreen";
 import { FavoritesOnlineScreen } from "./FavoritesOnlineScreen";
 import { getDeskPager, HOME_TAB_KEY, homeTabs, setDeskPager } from "./homeTabs";
 import { DownloadedScreen, SavedScreen } from "./LibraryScreens";
-import { RecommendationsScreen } from "./RecommendationsScreen";
+import { ForYouScreen } from "./ForYouScreen";
 import { TagsScreen } from "./TagsScreen";
 
 /** Страница, которой не важно, открыта ли она: один и тот же элемент, и React не считает её заново при смене вкладки. */
@@ -32,7 +32,7 @@ const page = (node: ReactNode) => () => node;
 const PAGES: Record<string, (active: boolean) => ReactNode> = {
   latest: page(<CatalogFeed />),
   community: page(<CommunityPage />),
-  recommendations: (active) => <RecommendationsScreen active={active} />,
+  recommendations: (active) => <ForYouScreen active={active} />,
   downloaded: page(<DownloadedScreen />),
   favorites: page(<SavedScreen kind="favorites" />),
   online: page(<FavoritesOnlineScreen />),

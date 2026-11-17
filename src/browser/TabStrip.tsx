@@ -51,7 +51,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/favorites": "menu.favorites",
   "/favorites-online": "menu.favoritesOnline",
   "/history": "menu.history",
-  "/recommendations": "menu.recommendations",
+  "/recommendations": "foryou.tab",
   "/community": "nav.community",
   "/characters": "menu.characters",
   "/image-search": "search.imageSearchResultsTitle",

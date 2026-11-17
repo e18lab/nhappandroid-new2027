@@ -19,6 +19,7 @@ import { useTagLabel } from "../lib/tagTranslations";
 import { useBookTitle } from "../lib/titleTranslations";
 import { FilterDropdown, Icon, type SelectItem } from "../ui";
 import { formatShortDate } from "./BookCard";
+import { useBookContextMenu } from "./BookContextMenu";
 import { SmartImage } from "./SmartImage";
 
 const NEW_WINDOW_MS = 2 * 60 * 60 * 1000;
@@ -102,6 +103,7 @@ export const BookRow = memo(function BookRow({
   const hidden = useMemo(() => isBookBlacklisted(book, blacklist), [book, blacklist]);
   const facts = useBookFacts(book);
   const compact = variant === "compact";
+  const menu = useBookContextMenu(book, onPress);
 
   // Строка тегов: из полных данных, а до них — по `tag_ids` карточки через локальный справочник
   const dbReady = useTagsDbReady();
@@ -127,7 +129,8 @@ export const BookRow = memo(function BookRow({
   const showTags = show.tags && !compact;
 
   return (
-    <div className={compact ? "ax-row is-compact" : "ax-row"} role="button" tabIndex={0} onClick={() => onPress(book)}>
+    <div className={compact ? "ax-row is-compact" : "ax-row"} role="button" tabIndex={0} onClick={() => onPress(book)} onContextMenu={menu.open}>
+      {menu.element}
       <div className={hidden ? "ax-row-cover is-blacklisted" : "ax-row-cover"}>
         <SmartImage sources={thumbSources(book.cover)} />
         {show.newBadge && facts.isNew && <span className="ax-row-new">{t("book.new")}</span>}
