@@ -1,6 +1,9 @@
 # Новая версия в package.json → сборка APK и установщика Windows, пакет обновления (`ota:pack:native`)
-# и релиз `v<версия>` (`ota:release`) — приложения подтягивают его из releases/latest.
-# Секрет репозитория: OTA_PRIVATE_KEY (содержимое update/keys/ota-private.pem). Необязательные —
+# на свой сервер (moelibre.cc/ota — rsync в /srv/ota) и релиз `v<версия>` (`ota:release`).
+# Приложения с 1.6.2 берут обновления с сервера; релиз GitHub с пакетом — для тех, кто ещё на старом адресе
+# (переходное время; потом в релизе останутся только APK и установщик — шаг `ota:release` заменить на загрузку их двоих).
+# Секреты: OTA_PRIVATE_KEY (содержимое update/keys/ota-private.pem), OTA_SSH_KEY + OTA_KNOWN_HOSTS (ключ
+# пользователя `ota` на сервере, пускает только rrsync в /srv/ota). Необязательные —
 # ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_PASSWORD (ключ — src-tauri/gen/android/keystore/nhapp.keystore).
 name: Release
 
@@ -128,6 +131,19 @@ jobs:
           mkdir -p update/keys
           printf '%s\n' "$OTA_PRIVATE_KEY" > update/keys/ota-private.pem
       - run: npm run ota:pack:native
+      # Сначала сервер: приложения, получившие новую версию из GitHub, сразу пойдут за файлами туда.
+      # Файлы по sha256 и сборки — до манифеста, чтобы манифест не ссылался на ещё не залитое.
+      - name: Пакет обновления на сервер
+        env:
+          OTA_SSH_KEY: ${{ secrets.OTA_SSH_KEY }}
+          OTA_KNOWN_HOSTS: ${{ secrets.OTA_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$OTA_SSH_KEY" > ~/.ssh/ota && chmod 600 ~/.ssh/ota
+          printf '%s\n' "$OTA_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          SSH="ssh -i $HOME/.ssh/ota -o IdentitiesOnly=yes"
+          rsync -rt --chmod=F644 -e "$SSH" --exclude manifest.json --exclude manifest.sig update/ota/ ota@92.119.167.240:/
+          rsync -t --chmod=F644 -e "$SSH" update/ota/manifest.json update/ota/manifest.sig ota@92.119.167.240:/
       - run: npm run ota:release
         env:
           GH_TOKEN: ${{ github.token }}

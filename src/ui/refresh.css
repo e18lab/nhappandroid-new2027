@@ -404,7 +404,8 @@ button.book-stat:active { background: var(--ax-surface-2); }
 .dk-row-top { height: 42px; align-items: flex-end; }
 .dk-row-top .dk-actions,
 .dk-row-top .dk-window { align-self: center; }
-.dk-btabs { height: 100%; align-items: flex-end; overflow: visible; }
+/* Начало полосы — правее скруглённого угла панели (12px), иначе под первой выбранной вкладкой виден «зубчик» */
+.dk-btabs { height: 100%; margin-left: 6px; align-items: flex-end; overflow: visible; }
 .dk-btab {
   position: relative;
   height: 34px;

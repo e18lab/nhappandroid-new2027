@@ -1,3 +1,5 @@
+// Демо-аккаунт для скриншотов (только dev, `?demo`) — раньше всех модулей, читающих вход
+import "./dev/demo";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";

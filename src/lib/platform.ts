@@ -8,7 +8,7 @@
 const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
 
 const DEV_BROWSER_MOBILE =
-  import.meta.env.DEV && typeof window !== "undefined" && !("__TAURI_INTERNALS__" in window) && !/[?&]desktop/.test(window.location.search);
+  import.meta.env.DEV && typeof window !== "undefined" && !("__TAURI_INTERNALS__" in window) && !/[?&]desktop\b/.test(window.location.search);
 
 export const IS_DESKTOP = !DEV_BROWSER_MOBILE && !/Android|iPhone|iPad|iPod|Mobile/i.test(ua);
 
