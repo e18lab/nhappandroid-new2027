@@ -15,8 +15,7 @@ import { nhLinkHooks, pullNhSession, putNhSession, refreshNhLinks, useNhLink } f
 import { mlSignedIn } from "./mlid";
 import { currentNhUserId, isSwappingAuth, swapNhAccount, useMe } from "./session";
 import { getItem, getJSON, removeItem, setItem, setJSON, subscribeKey } from "./storage";
-import { VAULT_NH_KEY } from "./cloudSync";
-import { hasVaultSecret, openJSON, sealJSON, subscribeVault } from "./vault";
+import { NH_AUTH_KEY } from "./cloudSync";
 
 const SESSIONS_KEY = "@auth.nh.sessions";
 
@@ -52,10 +51,9 @@ function save() {
   notify();
 }
 
-// ─── Входы в облаке: зашифрованы ключом защиты ────────────────────────────────
-// Токены и ключи API аккаунтов уходят в облако только зашифрованными ключом защиты (`vault.ts`): одной записью
-// `vault.nhentai.v1` (часть `res:nhentai`). Сервер и тот, кто получит базу, их не прочитают; устройство с ключом
-// защиты расшифровывает и входит само. У каждого аккаунта — время изменения `at`: побеждает более позднее.
+// ─── Входы в облаке ───────────────────────────────────────────────────────────
+// Токены и ключи API аккаунтов уходят в облако одной записью `nhentai.auth.v1` (часть `res:nhentai`); облако
+// доступно только входу в MoeLibre ID с аутентификатором. Другое устройство берёт их оттуда и входит само. У каждого аккаунта — время изменения `at`: побеждает более позднее.
 // Выход на одном устройстве другие не трогает; отозванный ключ и отвергнутую сессию другим не раздаём.
 
 interface VaultEntry {
@@ -69,8 +67,8 @@ type VaultBook = Record<string, VaultEntry>;
 
 /** Когда менялся вход аккаунта на устройстве и каким он был (отпечаток): `id → {at, sig}`. */
 const VAULT_AT = "@local.vault.nh.at";
-/** Прежняя запись ключей открытым текстом — стирается и на устройстве, и в облаке. */
-const PLAIN_KEYS = "nhentai.apiKeys.v1";
+/** Прежние записи (ключи API; входы под ключом защиты) — стираются на устройстве. */
+const OLD_KEYS = ["nhentai.apiKeys.v1", "vault.nhentai.v1"];
 
 const sig = (s: Saved | undefined) => `${fp(s?.access) ?? ""}|${fp(s?.refresh) ?? ""}|${fp(s?.apiKey) ?? ""}`;
 const readAts = () => getJSON<Record<string, { at: number; sig: string }>>(VAULT_AT, {});
@@ -78,7 +76,7 @@ const readAts = () => getJSON<Record<string, { at: number; sig: string }>>(VAULT
 /** Отвергнутое nhentai — не раздавать: отозванные ключи и мёртвые токены обновления (отпечатки). */
 const rejected = new Set<string>();
 let book: VaultBook = {};
-/** Последнее, что записали сами (зашифрованное) — своё же изменение не разбираем. */
+/** Последнее, что записали сами — своё же изменение не разбираем. */
 let lastSealed: string | null = null;
 let publishTimer = 0;
 
@@ -88,7 +86,6 @@ function schedulePublish() {
 }
 
 async function publishVault() {
-  if (!hasVaultSecret()) return;
   const ats = readAts();
   let atsChanged = false;
   const next: VaultBook = { ...book };
@@ -115,20 +112,22 @@ async function publishVault() {
   if (atsChanged) setJSON(VAULT_AT, ats);
   const same = JSON.stringify(next) === JSON.stringify(book);
   book = next;
-  if (same && lastSealed && getItem(VAULT_NH_KEY) === lastSealed) return;
-  const sealed = await sealJSON(book);
-  if (!sealed) return;
-  lastSealed = sealed;
-  setItem(VAULT_NH_KEY, sealed);
+  if (same && lastSealed && getItem(NH_AUTH_KEY) === lastSealed) return;
+  const raw = JSON.stringify(book);
+  lastSealed = raw;
+  setItem(NH_AUTH_KEY, raw);
 }
 
-/** Пришла запись из облака: расшифровать, взять более свежие входы. */
+/** Пришла запись из облака: взять более свежие входы. */
 async function receiveVault() {
-  const raw = getItem(VAULT_NH_KEY);
-  if (!hasVaultSecret()) return;
+  const raw = getItem(NH_AUTH_KEY);
   if (raw && raw !== lastSealed) {
-    const remote = await openJSON<VaultBook>(raw);
-    // Не расшифровать (зашифровано прежним ключом защиты) — перезаписать своим
+    let remote: VaultBook | null = null;
+    try {
+      remote = JSON.parse(raw) as VaultBook;
+    } catch {
+      /* битая запись — перезапишем своей */
+    }
     if (remote && typeof remote === "object") {
       for (const [id, e] of Object.entries(remote)) if (e && typeof e.at === "number" && (!book[id] || e.at > book[id].at)) book[id] = e;
     }
@@ -158,15 +157,9 @@ async function receiveVault() {
   schedulePublish();
 }
 
-subscribeKey(VAULT_NH_KEY, () => void receiveVault());
-subscribeVault(() => {
-  lastSealed = null;
-  book = {};
-  void receiveVault();
-});
-// Прежние ключи открытым текстом — стереть (удаление уйдёт и в облако)
-const dropPlain = () => getItem(PLAIN_KEYS) != null && removeItem(PLAIN_KEYS);
-subscribeKey(PLAIN_KEYS, dropPlain);
+subscribeKey(NH_AUTH_KEY, () => void receiveVault());
+// Прежние записи — стереть
+const dropPlain = () => OLD_KEYS.forEach((k) => getItem(k) != null && removeItem(k));
 queueMicrotask(() => {
   dropPlain();
   void receiveVault();
@@ -214,10 +207,6 @@ export function rememberSessionOf(me: Me): void {
 
 // Привязка MoeLibre забирает ключи устройства, которых у неё нет (`mlNhentai.ts`)
 nhLinkHooks.localKey = (id) => sessions[id]?.apiKey;
-nhLinkHooks.localAuth = (id) => {
-  const x = sessions[id];
-  return x ? { access: x.access, refresh: x.refresh, apiKey: x.apiKey } : undefined;
-};
 
 /** Ключ аккаунта получен (создан после входа или пришёл из привязки) — запомнить. */
 export function rememberAccountKey(id: number, apiKey: string): void {

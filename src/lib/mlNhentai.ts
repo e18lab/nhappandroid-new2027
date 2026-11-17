@@ -11,16 +11,12 @@
  *  - Сессия аккаунта одна на все устройства: обновил токены кто-то один — новые уходят в привязку
  *    (`PUT /v1/link/session`), остальные при неудаче обновления берут свежие оттуда же (`tokenHooks.recover`).
  *  - Выход из nhentai отвязывает активный аккаунт: его сессия на nhentai отзывается для всех устройств.
- *  - Токены и ключ API аккаунта уходят в привязку только зашифрованными ключом защиты пользователя (`vault.ts`):
- *    сервис и тот, кто получит его базу, их не прочитают. Нет ключа защиты на устройстве — в привязку уходит
- *    только сам факт привязки (сервис проверяет у nhentai, чей токен, и не хранит его).
  */
 import { useSyncExternalStore } from "react";
 import { hasSession, loadAccessToken, loadAccountKey, loadRefreshToken, storeAccountKey, storeTokens, tokenHooks, type NhAuth } from "../api/client";
 import { getMlAccount, mlFetch, MlError, mlSignedIn, refreshMlProfile, subscribeMl } from "./mlid";
 import { dropAccountKey, markSessionExpired, rememberCurrentSession } from "./nhAccounts";
 import { clientAccountId, currentNhUserId, swapNhAccount } from "./session";
-import { hasVaultSecret, openJSON, sealJSON, subscribeVault } from "./vault";
 
 export const ML_NH_URL: string = (import.meta.env.VITE_ML_NH_URL || "https://mlnappi.moelibre.cc").replace(/\/+$/, "");
 
@@ -34,8 +30,6 @@ export interface NhLinkedAccount {
   updated_at?: string;
   has_session?: boolean;
   has_key?: boolean;
-  /** В привязке лежит вход, зашифрованный ключом защиты (а не ключом сервиса). */
-  sealed?: boolean;
 }
 
 interface NhLinkState {
@@ -104,23 +98,22 @@ export async function refreshNhLinks(): Promise<NhLinkedAccount[] | null> {
   }
 }
 
-/** Что уже отдавали в привязку за этот запуск (`id:отпечаток`). */
-const sealedShared = new Set<string>();
+/** Ключи, которые уже пробовали отдать в привязку за этот запуск (`id:ключ`). */
+const keyShared = new Set<string>();
 
 /**
- * Вход есть на устройстве, а в привязке его нет или он там зашифрован ключом сервиса (прежние версии) —
- * отдать зашифрованным ключом защиты. Сервис после этого стирает свою копию.
+ * Ключ есть на устройстве, а в привязке его нет (создан до привязки, до того как сервис начал хранить ключи,
+ * или привязку пересоздали) — отдать. Иначе другие устройства с этим MoeLibre ID просят ключ заново.
  */
 function shareMissingKeys(accounts: NhLinkedAccount[]) {
-  if (!hasVaultSecret()) return;
   for (const a of accounts) {
-    const auth = authOf(a.id);
-    if (!auth.access && !auth.apiKey) continue;
-    if (a.sealed && (a.has_key || !auth.apiKey)) continue;
-    const mark = `${a.id}:${auth.access?.slice(-12) ?? ""}:${auth.apiKey?.slice(-12) ?? ""}`;
-    if (sealedShared.has(mark)) continue;
-    sealedShared.add(mark);
-    void putSealed(a.id, auth).catch(() => undefined);
+    if (a.has_key) continue;
+    const key = nhLinkHooks.localKey?.(a.id);
+    if (!key || keyShared.has(`${a.id}:${key}`)) continue;
+    keyShared.add(`${a.id}:${key}`);
+    void pushNhKey(a.id, key)
+      .then(() => set({ accounts: (state.accounts ?? []).map((x) => (x.id === a.id ? { ...x, has_key: true } : x)) }))
+      .catch(() => undefined);
   }
 }
 
@@ -130,14 +123,9 @@ export async function linkNh(): Promise<void> {
   const refresh = loadRefreshToken();
   if (!access) throw new MlError("nh_signed_out");
   await busy(currentNhUserId() ?? 0, async () => {
-    const apiKey = loadAccountKey();
     await mlFetch(`${ML_NH_URL}/v1/link`, {
       method: "POST",
-      body: JSON.stringify({
-        session: { access_token: access, refresh_token: refresh ?? undefined },
-        sealed: await seal({ access, refresh: refresh ?? undefined, apiKey: apiKey ?? undefined }),
-        has_key: !!apiKey,
-      }),
+      body: JSON.stringify({ session: { access_token: access, refresh_token: refresh ?? undefined } }),
     });
     syncedKey = keyOf(access, refresh);
     await refreshNhLinks();
@@ -158,11 +146,7 @@ export async function unlinkNh(id: number): Promise<void> {
 /** Вход аккаунта из привязки (без `id` — последнего использованного): сессия и / или ключ; null — ничего. */
 export async function pullNhSession(id?: number): Promise<NhAuth | null> {
   try {
-    const res = await mlFetch<{ session: NhSession | null; api_key?: string | null; sealed?: string | null }>(`${ML_NH_URL}/v1/link/session${id ? `?nh=${id}` : ""}`);
-    // Зашифрованный ключом защиты вход — расшифровать на устройстве (без ключа защиты его не прочитать)
-    const opened = res.sealed ? await openJSON<SealedAuth>(res.sealed) : null;
-    const session = opened?.access_token ? { access_token: opened.access_token, refresh_token: opened.refresh_token } : res.session;
-    const api_key = opened?.api_key ?? res.api_key;
+    const { session, api_key } = await mlFetch<{ session: NhSession | null; api_key?: string | null }>(`${ML_NH_URL}/v1/link/session${id ? `?nh=${id}` : ""}`);
     const auth: NhAuth = {
       ...(session?.access_token && session.refresh_token ? { access: session.access_token, refresh: session.refresh_token } : {}),
       ...(api_key ? { apiKey: api_key } : {}),
@@ -173,54 +157,18 @@ export async function pullNhSession(id?: number): Promise<NhAuth | null> {
   }
 }
 
-/** Вход аккаунта в зашифрованном виде (внутри блока `sealed`). */
-interface SealedAuth {
-  access_token?: string;
-  refresh_token?: string;
-  api_key?: string;
-}
-
-type Auth = { access?: string; refresh?: string; apiKey?: string };
-
-/** Зашифровать вход ключом защиты; null — ключа защиты на устройстве нет (тогда в привязку ничего не уходит). */
-async function seal(a: Auth): Promise<string | null> {
-  if (!hasVaultSecret() || (!a.access && !a.apiKey)) return null;
-  const box: SealedAuth = { ...(a.access && a.refresh ? { access_token: a.access, refresh_token: a.refresh } : {}), ...(a.apiKey ? { api_key: a.apiKey } : {}) };
-  return sealJSON(box);
-}
-
-/** Что известно о входе аккаунта на устройстве (открытый сейчас — из клиента). */
-function authOf(id: number): Auth {
-  const saved = nhLinkHooks.localAuth?.(id) ?? {};
-  if (id !== currentNhUserId()) return saved;
-  return { access: loadAccessToken() ?? saved.access, refresh: loadRefreshToken() ?? saved.refresh, apiKey: loadAccountKey() ?? saved.apiKey };
-}
-
-/** Вход аккаунта — в привязку, зашифрованным. false — нечего или нечем шифровать. */
-async function putSealed(nh: number, a: Auth): Promise<boolean> {
-  const sealed = await seal(a);
-  if (!sealed) return false;
-  await mlFetch(`${ML_NH_URL}/v1/link/sealed`, {
-    method: "PUT",
-    body: JSON.stringify({ nh, sealed, has_session: !!(a.access && a.refresh), has_key: !!a.apiKey }),
-  });
-  set({ accounts: (state.accounts ?? []).map((x) => (x.id === nh ? { ...x, sealed: true, has_key: !!a.apiKey, has_session: !!(a.access && a.refresh) } : x)) });
-  return true;
-}
-
 /** Обновлённая сессия аккаунта (не текущего в клиенте) — в привязку, чтобы там не осталась устаревшая. */
 export async function putNhSession(nh: number, access: string, refresh: string): Promise<void> {
-  await putSealed(nh, { ...authOf(nh), access, refresh }).catch(() => undefined);
+  await mlFetch(`${ML_NH_URL}/v1/link/session`, { method: "PUT", body: JSON.stringify({ nh, session: { access_token: access, refresh_token: refresh } }) }).catch(() => undefined);
 }
 
-/** Ключ API аккаунта — в привязку (зашифрованным вместе с сессией). */
+/** Ключ API аккаунта — в привязку (сервис проверит у nhentai, что ключ его). */
 export async function pushNhKey(id: number, key: string): Promise<void> {
-  await putSealed(id, { ...authOf(id), apiKey: key });
+  await mlFetch(`${ML_NH_URL}/v1/link/key`, { method: "PUT", body: JSON.stringify({ nh: id, key }) });
 }
 
 /** Ключ отозван — убрать из привязки. */
 export async function dropNhKey(id: number): Promise<void> {
-  await putSealed(id, { ...authOf(id), apiKey: undefined }).catch(() => undefined);
   await mlFetch(`${ML_NH_URL}/v1/link/key?nh=${id}`, { method: "DELETE" }).catch(() => undefined);
 }
 
@@ -258,10 +206,12 @@ function schedulePush(attempt = 0) {
     // Профиль ещё грузится после входа — подождать
     if (!nh) return void (attempt < 4 && schedulePush(attempt + 1));
     if (!isNhLinked(nh)) return;
-    void putSealed(nh, { access, refresh: refresh ?? undefined, apiKey: loadAccountKey() ?? undefined }).then(
-      (sent) => {
-        // Без ключа защиты не отправили — отправим, когда его введут (`subscribeVault`)
-        if (sent) syncedKey = key;
+    void mlFetch(`${ML_NH_URL}/v1/link/session`, {
+      method: "PUT",
+      body: JSON.stringify({ nh, session: { access_token: access, refresh_token: refresh ?? undefined } }),
+    }).then(
+      () => {
+        syncedKey = key;
       },
       (e) => {
         // Отвязали на другом устройстве
@@ -292,8 +242,6 @@ export const nhLinkHooks: {
   canAutoSignIn?: () => boolean;
   /** Ключ API аккаунта на этом устройстве (задаёт `nhAccounts.ts`). */
   localKey?: (id: number) => string | undefined;
-  /** Вход аккаунта на этом устройстве (задаёт `nhAccounts.ts`). */
-  localAuth?: (id: number) => { access?: string; refresh?: string; apiKey?: string } | undefined;
 } = {};
 
 /** Вошли в MoeLibre ID: узнать привязки и, если здесь nhentai нет, войти в последний использованный аккаунт. */
@@ -364,10 +312,4 @@ export function initMlNhentai(): void {
     }
   });
   if (mlSignedIn()) void onMlAccount();
-  // Ввели ключ защиты — отдать в привязку входы, которые до этого отправить было нечем
-  subscribeVault(() => {
-    syncedKey = "";
-    if (state.accounts) shareMissingKeys(state.accounts);
-    if (hasSession()) schedulePush();
-  });
 }

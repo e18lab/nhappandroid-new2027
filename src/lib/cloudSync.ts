@@ -27,7 +27,8 @@ export const ML_CLOUD_URL: string = (import.meta.env.VITE_ML_CLOUD_URL || "https
 
 const FAV_OPS_KEY = "bookFavorites.ops.v1";
 const API_KEYS_KEY = "nhentai.apiKeys.v1";
-export const VAULT_NH_KEY = "vault.nhentai.v1";
+/** Входы аккаунтов nhentai (токены и ключи API) — `nhAccounts.ts`. */
+export const NH_AUTH_KEY = "nhentai.auth.v1";
 const META_KEY = "@local.cloud.t";
 const OFF_KEY = "@local.cloud.off";
 const STASH_PREFIX = "@local.stash.nhentai.";
@@ -76,8 +77,8 @@ const RES_KEYS = new Set<string>([
   KEYS.recommendationCalibration,
   // Прежние ключи API открытым текстом — только чтобы стереть их из облака (`nhAccounts.ts`)
   API_KEYS_KEY,
-  // Входы аккаунтов nhentai, зашифрованные ключом защиты (`nhAccounts.ts`, `vault.ts`)
-  VAULT_NH_KEY,
+  // Входы аккаунтов nhentai (`nhAccounts.ts`)
+  NH_AUTH_KEY,
 ]);
 /** Раскладка своего типа устройства. */
 const LAYOUT_KEYS = new Set<string>([KEYS.galleryColumns, KEYS.gridConfig, KEYS.fullscreen]);
@@ -281,9 +282,9 @@ export interface CloudState {
   off: string[];
   /** Последняя ошибка записи (облако переполнено и т. п.). */
   error: string | null;
-  /** Задан ли у аккаунта ключ защиты (второй фактор); null — не знаем. */
+  /** Прежний ключ защиты (убран, сервер всегда шлёт true). */
   vault: boolean | null;
-  /** Введён ли ключ защиты на этом устройстве (сервер пускает в облако); null — не знаем. */
+  /** Вход в MoeLibre ID с аутентификатором — сервер пускает в облако; null — не знаем. */
   granted: boolean | null;
 }
 
@@ -370,7 +371,7 @@ function send(msg: unknown): boolean {
   }
 }
 
-// Без ключа защиты на устройстве сервер частей не отдаёт и записей не принимает
+// Без аутентификатора MoeLibre ID сервер частей не отдаёт и записей не принимает
 const activeParts = () => (state.enabled && state.granted ? deviceParts().filter(isPartOn) : []);
 
 /** Сообщить серверу, какие части слушаем. `fresh` — часть, которую надо получить заново (включили на устройстве). */
@@ -510,7 +511,7 @@ function onMessage(event: MessageEvent) {
       return;
     case "nack":
       if (msg.code === "cloud_disabled") patch({ enabled: false, parts: [] });
-      else if (msg.code === "vault_locked") patch({ granted: false, parts: [] });
+      else if (msg.code === "mfa_required" || msg.code === "vault_locked") patch({ granted: false, parts: [] });
       else patch({ error: String(msg.code) });
       return;
     case "peers":
@@ -695,7 +696,7 @@ export async function fetchCloudInfo(): Promise<CloudInfo> {
   return info;
 }
 
-/** Включить облако: только на устройстве, где введён ключ защиты (`vault.ts`). */
+/** Включить облако: только аккаунту с аутентификатором MoeLibre ID. */
 export async function enableCloud(): Promise<void> {
   await mlFetch(`${ML_CLOUD_URL}/v1/cloud/enable`, { method: "POST", body: JSON.stringify({ device_id: getDeviceId() }) });
   loaded.clear();
